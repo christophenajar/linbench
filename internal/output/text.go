@@ -18,8 +18,12 @@ func FormatText(result model.BenchmarkResult, sections model.Sections) string {
 	fmt.Fprintf(&b, "  Hostname  : %s\n", result.System.Hostname)
 	fmt.Fprintf(&b, "  Kernel    : %s\n", result.System.Kernel)
 	fmt.Fprintf(&b, "  CPU Model : %s\n", result.System.CPUModel)
+	fmt.Fprintf(&b, "  Sockets   : %d\n", result.System.CPUSockets)
 	fmt.Fprintf(&b, "  Cores     : %d\n", result.System.CPUCores)
 	fmt.Fprintf(&b, "  Threads   : %d\n", result.System.CPUThreads)
+	if result.BenchmarkEngine != "" {
+		fmt.Fprintf(&b, "  Engine    : %s\n", result.BenchmarkEngine)
+	}
 	fmt.Fprintln(&b)
 
 	if sections.Memory {

@@ -4,6 +4,10 @@ package benchmark
 
 import "time"
 
+func EngineName() string {
+	return "go"
+}
+
 func readBandwidth(values []uint64, duration time.Duration) float64 {
 	return timedBandwidth(duration, func() int64 {
 		var sum uint64

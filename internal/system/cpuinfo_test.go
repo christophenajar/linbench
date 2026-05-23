@@ -18,9 +18,12 @@ core id		: 1
 cpu cores	: 2
 model name	: Example CPU
 `
-	model, cores, threads := ParseCPUInfo(strings.NewReader(input))
+	model, sockets, cores, threads := ParseCPUInfo(strings.NewReader(input))
 	if model != "Example CPU" {
 		t.Fatalf("model = %q", model)
+	}
+	if sockets != 1 {
+		t.Fatalf("sockets = %d, want 1", sockets)
 	}
 	if cores != 2 {
 		t.Fatalf("cores = %d, want 2", cores)

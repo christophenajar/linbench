@@ -23,8 +23,11 @@ func ReadSystemInfo() model.SystemInfo {
 
 	if f, err := os.Open("/proc/cpuinfo"); err == nil {
 		defer f.Close()
-		modelName, cores, threads := ParseCPUInfo(f)
+		modelName, sockets, cores, threads := ParseCPUInfo(f)
 		info.CPUModel = modelName
+		if sockets > 0 {
+			info.CPUSockets = sockets
+		}
 		if cores > 0 {
 			info.CPUCores = cores
 		}
@@ -35,13 +38,16 @@ func ReadSystemInfo() model.SystemInfo {
 	if info.CPUCores == 0 {
 		info.CPUCores = info.CPUThreads
 	}
+	if info.CPUSockets == 0 {
+		info.CPUSockets = 1
+	}
 	if info.CPUModel == "" {
 		info.CPUModel = "unknown"
 	}
 	return info
 }
 
-func ParseCPUInfo(r io.Reader) (modelName string, cores int, threads int) {
+func ParseCPUInfo(r io.Reader) (modelName string, sockets int, cores int, threads int) {
 	scanner := bufio.NewScanner(r)
 	physicalIDs := map[string]bool{}
 	coreIDs := map[string]bool{}
@@ -79,7 +85,10 @@ func ParseCPUInfo(r io.Reader) (modelName string, cores int, threads int) {
 	} else if cores > 0 && len(physicalIDs) > 1 {
 		cores *= len(physicalIDs)
 	}
-	return modelName, cores, threads
+	if len(physicalIDs) > 0 {
+		sockets = len(physicalIDs)
+	}
+	return modelName, sockets, cores, threads
 }
 
 func kernelRelease() string {

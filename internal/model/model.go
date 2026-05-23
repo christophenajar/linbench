@@ -1,13 +1,14 @@
 package model
 
 type BenchmarkResult struct {
-	System   SystemInfo   `json:"system"`
-	Memory   MemoryResult `json:"memory"`
-	Cache    CacheResult  `json:"cache"`
-	CPU      CPUResult    `json:"cpu"`
-	Disk     DiskResult   `json:"disk"`
-	Warnings []string     `json:"warnings,omitempty"`
-	Errors   []string     `json:"errors,omitempty"`
+	System          SystemInfo   `json:"system"`
+	BenchmarkEngine string       `json:"benchmark_engine"`
+	Memory          MemoryResult `json:"memory"`
+	Cache           CacheResult  `json:"cache"`
+	CPU             CPUResult    `json:"cpu"`
+	Disk            DiskResult   `json:"disk"`
+	Warnings        []string     `json:"warnings,omitempty"`
+	Errors          []string     `json:"errors,omitempty"`
 }
 
 type SystemInfo struct {
@@ -16,6 +17,7 @@ type SystemInfo struct {
 	Hostname   string `json:"hostname"`
 	Kernel     string `json:"kernel"`
 	CPUModel   string `json:"cpu_model"`
+	CPUSockets int    `json:"cpu_sockets"`
 	CPUCores   int    `json:"cpu_cores"`
 	CPUThreads int    `json:"cpu_threads"`
 }

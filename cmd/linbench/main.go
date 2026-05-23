@@ -16,7 +16,7 @@ import (
 	"linbench/internal/unit"
 )
 
-const version = "0.1.3"
+const version = "0.1.4"
 
 func main() {
 	os.Exit(run(os.Args[1:]))
@@ -98,9 +98,15 @@ func run(args []string) int {
 		return 2
 	}
 
-	result := model.BenchmarkResult{System: system.ReadSystemInfo()}
+	result := model.BenchmarkResult{
+		System:          system.ReadSystemInfo(),
+		BenchmarkEngine: benchmark.EngineName(),
+	}
 	if verbose {
 		fmt.Fprintf(os.Stderr, "duration=%s threads=%d memory=%d disk=%d\n", duration, threads, memorySize, diskSize)
+	}
+	if result.System.CPUSockets > 1 && (sections.Memory || sections.Cache) {
+		result.Warnings = append(result.Warnings, "system: multiple CPU sockets detected; memory and cache results may depend on NUMA placement")
 	}
 
 	if sections.Memory {

@@ -2,7 +2,7 @@
 
 `linbench` est un outil de benchmark matériel en ligne de commande pour Linux, écrit en Go.
 
-Version actuelle : `0.1.3`.
+Version actuelle : `0.1.4`.
 
 Il mesure les performances principales d'une machine sans interface graphique :
 
@@ -175,6 +175,7 @@ La sortie texte est lisible directement dans un terminal et regroupe les mesures
 La sortie JSON expose une structure stable avec les blocs suivants :
 
 - `system`
+- `benchmark_engine`
 - `memory`
 - `cache`
 - `cpu`
@@ -221,6 +222,15 @@ Les tailles de cache sont lues depuis :
 ```
 
 Chaque niveau est mesuré avec un buffer dimensionné pour tenir dans le cache ciblé. Si les informations Linux ne sont pas disponibles, le code utilise des valeurs de repli.
+
+La sortie indique le moteur de benchmark utilise :
+
+- `Engine : go` avec un build `CGO_ENABLED=0`
+- `Engine : cgo` avec un build `CGO_ENABLED=1`
+
+Avec cgo, les noyaux C utilisent des boucles batchees et, quand le compilateur expose `__AVX2__` via `-march=native`, des chemins AVX2 pour certaines phases d'ecriture et de copie.
+
+Sur les machines multi-socket, les resultats RAM/cache peuvent varier selon le placement NUMA. `linbench` affiche un warning si plusieurs sockets CPU sont detectes.
 
 ### CPU
 
@@ -276,6 +286,13 @@ Le fichier est conservé uniquement avec :
 - Noyaux C RAM/cache batchés pour réduire le coût de `clock_gettime` sur les petits buffers L1/L2.
 - Boucles C de lecture et écriture déroulées avec plusieurs accumulateurs indépendants.
 - Documentation du build `CGO_CFLAGS='-O3 -march=native'` pour les builds locaux optimisés.
+
+## Changements 0.1.4
+
+- Affichage du moteur de benchmark : `go` ou `cgo`.
+- Détection du nombre de sockets CPU dans la sortie système.
+- Warning NUMA sur machines multi-socket.
+- Chemins AVX2 conditionnels pour les noyaux C write/copy quand le binaire est compilé avec `-march=native` sur CPU compatible.
 
 ## Développement
 
