@@ -16,7 +16,7 @@ import (
 	"linbench/internal/unit"
 )
 
-const version = "0.1.2"
+const version = "0.1.3"
 
 func main() {
 	os.Exit(run(os.Args[1:]))

@@ -2,7 +2,7 @@
 
 `linbench` est un outil de benchmark matériel en ligne de commande pour Linux, écrit en Go.
 
-Version actuelle : `0.1.2`.
+Version actuelle : `0.1.3`.
 
 Il mesure les performances principales d'une machine sans interface graphique :
 
@@ -59,6 +59,14 @@ cd linbench
 mkdir -p bin
 CGO_ENABLED=1 go build -trimpath -ldflags '-s -w' -o bin/linbench-linux-amd64 ./cmd/linbench
 ```
+
+Si le binaire est compile et execute sur la meme machine, il est possible de demander au compilateur C d'utiliser les optimisations propres au CPU local :
+
+```bash
+CGO_ENABLED=1 CGO_CFLAGS='-O3 -march=native' go build -trimpath -ldflags '-s -w' -o bin/linbench-linux-amd64 ./cmd/linbench
+```
+
+Ne pas utiliser `-march=native` pour construire un binaire destine a etre copie sur des machines differentes.
 
 Verifier la version :
 
@@ -262,6 +270,12 @@ Le fichier est conservé uniquement avec :
 - Noyaux C optionnels via cgo pour les débits RAM/cache.
 - Fallback Go automatique quand `CGO_ENABLED=0`.
 - Chemin disque par défaut changé vers `~/tmp` quand ce dossier existe.
+
+## Changements 0.1.3
+
+- Noyaux C RAM/cache batchés pour réduire le coût de `clock_gettime` sur les petits buffers L1/L2.
+- Boucles C de lecture et écriture déroulées avec plusieurs accumulateurs indépendants.
+- Documentation du build `CGO_CFLAGS='-O3 -march=native'` pour les builds locaux optimisés.
 
 ## Développement
 
