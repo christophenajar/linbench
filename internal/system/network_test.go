@@ -16,18 +16,57 @@ func TestNetworkWarnings(t *testing.T) {
 		SpeedMbps:     10000,
 		LocalCPUs:     "0-3",
 		IRQs: []model.IRQInfo{
-			{IRQ: "74", Affinity: "4-7"},
+			{IRQ: "74", Name: "mlx5_comp0", Affinity: "4-7"},
 		},
 	}, "0-7")
 	for _, want := range []string{
 		"RDMA device is missing for Mellanox/NVIDIA interface",
 		"link speed is below 25Gb/s",
 		"process CPU affinity includes CPUs outside NIC-local NUMA node",
-		"one or more NIC IRQ affinities include CPUs outside NIC-local NUMA node",
+		"one or more NIC data/completion IRQ affinities include CPUs outside NIC-local NUMA node",
 	} {
 		if !containsString(warnings, want) {
 			t.Fatalf("missing warning %q in %#v", want, warnings)
 		}
+	}
+}
+
+func TestNetworkDiagnosticsInfo(t *testing.T) {
+	warnings, infos := networkDiagnostics(model.NetworkInterface{
+		Name:             "enp4s0f0np0",
+		IsMellanox:       true,
+		RDMAAvailable:    true,
+		RoCEAvailable:    true,
+		OperState:        "up",
+		MTU:              9000,
+		SpeedMbps:        25000,
+		LocalCPUs:        "0-3",
+		PCIeCurrentSpeed: "8.0 GT/s PCIe",
+		PCIeCurrentWidth: "8",
+		PCIeMaxSpeed:     "16.0 GT/s PCIe",
+		PCIeMaxWidth:     "8",
+		IRQs: []model.IRQInfo{
+			{IRQ: "75", Name: "mlx5_async0", Affinity: "0-7"},
+			{IRQ: "76", Name: "mlx5_comp0", Affinity: "0"},
+		},
+	}, "0-3")
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %#v", warnings)
+	}
+	for _, want := range []string{
+		"PCIe current link speed is below max, but estimated PCIe bandwidth is sufficient for current link speed",
+		"one or more NIC non-data IRQ affinities include CPUs outside NIC-local NUMA node",
+	} {
+		if !containsString(infos, want) {
+			t.Fatalf("missing info %q in %#v", want, infos)
+		}
+	}
+}
+
+func TestEstimatePCIeBandwidthMbps(t *testing.T) {
+	got := estimatePCIeBandwidthMbps("8.0 GT/s PCIe", "8")
+	if got < 63000 || got > 63100 {
+		t.Fatalf("bandwidth = %f", got)
 	}
 }
 

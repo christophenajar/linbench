@@ -107,6 +107,7 @@ type NetworkInterface struct {
 	RDMAAvailable    bool      `json:"rdma_available"`
 	RoCEAvailable    bool      `json:"roce_available"`
 	IRQs             []IRQInfo `json:"irqs,omitempty"`
+	Infos            []string  `json:"infos,omitempty"`
 	Warnings         []string  `json:"warnings,omitempty"`
 }
 

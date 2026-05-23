@@ -2,7 +2,7 @@
 
 `linbench` est un outil de benchmark matériel en ligne de commande pour Linux, écrit en Go.
 
-Version actuelle : `0.2.1`.
+Version actuelle : `0.2.2`.
 
 Il mesure les performances principales d'une machine sans interface graphique :
 
@@ -343,12 +343,17 @@ Il vérifie :
 Le module signale notamment :
 
 - process exécuté sur des CPUs hors du NUMA node local de la NIC
-- IRQs mlx5 autorisées sur des CPUs distants
+- IRQs data/completion mlx5 autorisées sur des CPUs distants
 - lien réseau down ou vitesse inférieure à 25 Gb/s sur carte Mellanox
 - MTU inférieur à 9000 quand RoCE est détecté
-- lien PCIe dégradé par rapport à la capacité max
+- lien PCIe potentiellement insuffisant pour la vitesse réseau courante
 - device RDMA manquant
 - outils perftest manquants
+
+Les écarts non critiques sont affichés dans les blocs `Info`, par exemple :
+
+- lien PCIe négocié sous le maximum annoncé, mais bande passante estimée suffisante pour le lien réseau
+- IRQ non-data, comme `mlx5_async`, autorisée sur des CPUs distants
 
 Sur une machine NUMA, l'audit recommande une commande alignant CPU et mémoire sur le node local de la NIC :
 
@@ -411,6 +416,13 @@ Les tests actifs RDMA, comme `ib_write_bw` ou `ib_read_bw`, ne sont pas lancés 
 - Ajout de `--network-all` pour afficher toutes les interfaces.
 - Déduplication des recommandations `numactl`.
 - Meilleure gestion des interfaces Mellanox en bond RDMA, par exemple `mlx5_bond_0`.
+
+## Changements 0.2.2
+
+- Séparation des diagnostics réseau critiques (`Warnings`) et contextuels (`Info`).
+- PCIe sous le maximum passe en info si la bande passante estimée suffit au lien réseau courant.
+- Les IRQ non-data distantes, par exemple `mlx5_async`, passent en info.
+- Les warnings IRQ distantes ciblent désormais les IRQ data/completion.
 
 ## Développement
 

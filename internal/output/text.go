@@ -209,6 +209,12 @@ func writeNetwork(b *strings.Builder, result model.NetworkResult) {
 				fmt.Fprintf(b, "      - %s\n", warning)
 			}
 		}
+		if len(iface.Infos) > 0 {
+			fmt.Fprintln(b, "    Info")
+			for _, info := range iface.Infos {
+				fmt.Fprintf(b, "      - %s\n", info)
+			}
+		}
 	}
 	if len(result.PerftestTools) > 0 {
 		fmt.Fprintln(b, "  Perftest")

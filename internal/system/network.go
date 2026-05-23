@@ -50,7 +50,7 @@ func ReadNetworkInfo(includeAll bool) model.NetworkResult {
 	}
 	reconcileBondedRDMA(result.Interfaces)
 	for i := range result.Interfaces {
-		result.Interfaces[i].Warnings = networkWarnings(result.Interfaces[i], result.ProcessCPUs)
+		result.Interfaces[i].Warnings, result.Interfaces[i].Infos = networkDiagnostics(result.Interfaces[i], result.ProcessCPUs)
 	}
 	sort.Slice(result.Interfaces, func(i, j int) bool {
 		return result.Interfaces[i].Name < result.Interfaces[j].Name
@@ -123,7 +123,13 @@ func reconcileBondedRDMA(ifaces []model.NetworkInterface) {
 }
 
 func networkWarnings(iface model.NetworkInterface, processCPUs string) []string {
+	warnings, _ := networkDiagnostics(iface, processCPUs)
+	return warnings
+}
+
+func networkDiagnostics(iface model.NetworkInterface, processCPUs string) ([]string, []string) {
 	var warnings []string
+	var infos []string
 	if iface.IsMellanox && !iface.RDMAAvailable {
 		warnings = append(warnings, "RDMA device is missing for Mellanox/NVIDIA interface")
 	}
@@ -140,7 +146,11 @@ func networkWarnings(iface model.NetworkInterface, processCPUs string) []string 
 		warnings = append(warnings, "MTU is below 9000; jumbo frames are usually expected for RoCE")
 	}
 	if iface.PCIeCurrentSpeed != "" && iface.PCIeMaxSpeed != "" && iface.PCIeCurrentSpeed != iface.PCIeMaxSpeed {
-		warnings = append(warnings, "PCIe current link speed is below max link speed")
+		if pcieBandwidthSufficient(iface) {
+			infos = append(infos, "PCIe current link speed is below max, but estimated PCIe bandwidth is sufficient for current link speed")
+		} else {
+			warnings = append(warnings, "PCIe current link speed may be insufficient for current link speed")
+		}
 	}
 	if iface.PCIeCurrentWidth != "" && iface.PCIeMaxWidth != "" && iface.PCIeCurrentWidth != iface.PCIeMaxWidth {
 		warnings = append(warnings, "PCIe current link width is below max link width")
@@ -148,16 +158,84 @@ func networkWarnings(iface model.NetworkInterface, processCPUs string) []string 
 	if iface.LocalCPUs != "" && CPUListContainsRemote(processCPUs, iface.LocalCPUs) {
 		warnings = append(warnings, "process CPU affinity includes CPUs outside NIC-local NUMA node")
 	}
-	remoteIRQs := 0
+	remoteDataIRQs := 0
+	remoteOtherIRQs := 0
 	for _, irq := range iface.IRQs {
 		if irq.Affinity != "" && iface.LocalCPUs != "" && CPUListContainsRemote(irq.Affinity, iface.LocalCPUs) {
-			remoteIRQs++
+			if isDataIRQ(irq.Name) {
+				remoteDataIRQs++
+			} else {
+				remoteOtherIRQs++
+			}
 		}
 	}
-	if remoteIRQs > 0 {
-		warnings = append(warnings, "one or more NIC IRQ affinities include CPUs outside NIC-local NUMA node")
+	if remoteDataIRQs > 0 {
+		warnings = append(warnings, "one or more NIC data/completion IRQ affinities include CPUs outside NIC-local NUMA node")
 	}
-	return warnings
+	if remoteOtherIRQs > 0 {
+		infos = append(infos, "one or more NIC non-data IRQ affinities include CPUs outside NIC-local NUMA node")
+	}
+	return warnings, infos
+}
+
+func isDataIRQ(name string) bool {
+	name = strings.ToLower(name)
+	return strings.Contains(name, "comp") || strings.Contains(name, "-rx") || strings.Contains(name, "-tx")
+}
+
+func pcieBandwidthSufficient(iface model.NetworkInterface) bool {
+	if iface.SpeedMbps <= 0 {
+		return false
+	}
+	capacityMbps := estimatePCIeBandwidthMbps(iface.PCIeCurrentSpeed, iface.PCIeCurrentWidth)
+	if capacityMbps <= 0 {
+		return false
+	}
+	requiredMbps := float64(iface.SpeedMbps) * 1.20
+	return capacityMbps >= requiredMbps
+}
+
+func estimatePCIeBandwidthMbps(speedText string, widthText string) float64 {
+	speed := parsePCIeGTS(speedText)
+	width := parsePCIeWidth(widthText)
+	if speed <= 0 || width <= 0 {
+		return 0
+	}
+	gbpsPerLane := 0.0
+	switch {
+	case speed >= 16:
+		gbpsPerLane = 15.754
+	case speed >= 8:
+		gbpsPerLane = 7.877
+	case speed >= 5:
+		gbpsPerLane = 4.0
+	case speed >= 2.5:
+		gbpsPerLane = 2.0
+	default:
+		gbpsPerLane = speed * 0.8
+	}
+	return gbpsPerLane * float64(width) * 1000
+}
+
+func parsePCIeGTS(value string) float64 {
+	fields := strings.Fields(value)
+	if len(fields) == 0 {
+		return 0
+	}
+	speed, err := strconv.ParseFloat(fields[0], 64)
+	if err != nil {
+		return 0
+	}
+	return speed
+}
+
+func parsePCIeWidth(value string) int {
+	value = strings.TrimSpace(strings.TrimPrefix(value, "x"))
+	width, err := strconv.Atoi(value)
+	if err != nil {
+		return 0
+	}
+	return width
 }
 
 func ifaceRecommendations(iface model.NetworkInterface) []string {
