@@ -154,24 +154,7 @@ static double linbench_copy_u64(uint64_t *dst, uint64_t *src, size_t n, int64_t 
 	size_t batch_passes = linbench_batch_passes(byte_count);
 	do {
 		for (size_t pass = 0; pass < batch_passes; pass++) {
-#if defined(__AVX2__)
-			size_t i = 0;
-			for (; i + 15 < n; i += 16) {
-				__m256i v0 = _mm256_loadu_si256((const __m256i *)(src + i + 0));
-				__m256i v1 = _mm256_loadu_si256((const __m256i *)(src + i + 4));
-				__m256i v2 = _mm256_loadu_si256((const __m256i *)(src + i + 8));
-				__m256i v3 = _mm256_loadu_si256((const __m256i *)(src + i + 12));
-				_mm256_storeu_si256((__m256i *)(dst + i + 0), v0);
-				_mm256_storeu_si256((__m256i *)(dst + i + 4), v1);
-				_mm256_storeu_si256((__m256i *)(dst + i + 8), v2);
-				_mm256_storeu_si256((__m256i *)(dst + i + 12), v3);
-			}
-			if (i < n) {
-				memcpy(dst + i, src + i, (n - i) * sizeof(uint64_t));
-			}
-#else
 			memcpy(dst, src, byte_count);
-#endif
 		}
 		bytes += (uint64_t)byte_count * (uint64_t)batch_passes;
 	} while (linbench_now_ns() < deadline);
