@@ -2,7 +2,7 @@
 
 `linbench` est un outil de benchmark matériel en ligne de commande pour Linux, écrit en Go.
 
-Version actuelle : `0.1.5`.
+Version actuelle : `0.1.6`.
 
 Il mesure les performances principales d'une machine sans interface graphique :
 
@@ -176,6 +176,7 @@ La sortie JSON expose une structure stable avec les blocs suivants :
 
 - `system`
 - `benchmark_engine`
+- `numa`
 - `memory`
 - `cache`
 - `cpu`
@@ -230,7 +231,32 @@ La sortie indique le moteur de benchmark utilise :
 
 Avec cgo, les noyaux C utilisent des boucles batchees. Quand le compilateur expose `__AVX2__` via `-march=native`, le noyau d'ecriture utilise un chemin AVX2 conditionnel. La copie reste volontairement deleguee a `memcpy`, car la libc choisit souvent une routine mieux optimisee que les intrinsics manuels selon le CPU et la taille du buffer.
 
-Sur les machines multi-socket, les resultats RAM/cache peuvent varier selon le placement NUMA. `linbench` affiche un warning si plusieurs sockets CPU sont detectes.
+Sur les machines multi-socket ou multi-node NUMA, les resultats RAM/cache peuvent varier selon le placement NUMA. `linbench` affiche un warning si plusieurs nodes NUMA sont detectes.
+
+### NUMA
+
+`linbench` lit les informations NUMA depuis :
+
+```text
+/sys/devices/system/node/node*/cpulist
+/sys/devices/system/node/node*/meminfo
+/sys/devices/system/node/node*/distance
+```
+
+La sortie affiche :
+
+- nombre de nodes NUMA
+- CPUs rattaches a chaque node
+- memoire totale et libre par node
+- matrice de distance NUMA
+- commandes `numactl` recommandees pour comparer acces local et distant
+
+Exemple de comparaison :
+
+```bash
+numactl --cpunodebind=0 --membind=0 ./bin/linbench-linux-amd64 --ram --cache --duration 5s --memory-size 1G
+numactl --cpunodebind=0 --membind=1 ./bin/linbench-linux-amd64 --ram --cache --duration 5s --memory-size 1G
+```
 
 ### CPU
 
@@ -298,6 +324,12 @@ Le fichier est conservé uniquement avec :
 
 - Retour a `memcpy` pour le noyau C copy, afin de laisser la libc choisir la meilleure implementation.
 - Conservation du chemin AVX2 conditionnel pour le noyau C write.
+
+## Changements 0.1.6
+
+- Ajout d'une section NUMA dans la sortie texte et JSON.
+- Lecture des nodes, CPU lists, meminfo et distances depuis `/sys/devices/system/node`.
+- Recommandations automatiques de commandes `numactl` quand plusieurs nodes NUMA sont detectes.
 
 ## Développement
 

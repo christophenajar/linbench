@@ -26,6 +26,10 @@ func FormatText(result model.BenchmarkResult, sections model.Sections) string {
 	}
 	fmt.Fprintln(&b)
 
+	if result.NUMA.Available {
+		writeNUMA(&b, result.NUMA)
+	}
+
 	if sections.Memory {
 		fmt.Fprintln(&b, "Memory")
 		fmt.Fprintf(&b, "  Read      : %.0f MB/s\n", result.Memory.ReadMBS)
@@ -89,4 +93,47 @@ func writeCacheLevel(b *strings.Builder, name string, result model.CacheLevelRes
 	fmt.Fprintf(b, "  Copy      : %.1f GB/s\n", result.CopyGBS)
 	fmt.Fprintf(b, "  Latency   : %.1f ns\n", result.LatencyNS)
 	fmt.Fprintln(b)
+}
+
+func writeNUMA(b *strings.Builder, result model.NUMAInfo) {
+	fmt.Fprintln(b, "NUMA")
+	fmt.Fprintf(b, "  Nodes     : %d\n", result.NodeCount)
+	for _, node := range result.Nodes {
+		fmt.Fprintf(b, "  Node %d\n", node.ID)
+		fmt.Fprintf(b, "    CPUs    : %s\n", valueOrUnknown(node.CPUs))
+		if node.MemTotalBytes > 0 {
+			fmt.Fprintf(b, "    Memory  : %.0f MB total, %.0f MB free\n", bytesToMB(node.MemTotalBytes), bytesToMB(node.MemFreeBytes))
+		} else {
+			fmt.Fprintln(b, "    Memory  : unknown")
+		}
+		if len(node.Distance) > 0 {
+			fmt.Fprintf(b, "    Distance: %s\n", intsToString(node.Distance))
+		}
+	}
+	if len(result.Recommendations) > 0 {
+		fmt.Fprintln(b, "  Recommended")
+		for _, recommendation := range result.Recommendations {
+			fmt.Fprintf(b, "    %s\n", recommendation)
+		}
+	}
+	fmt.Fprintln(b)
+}
+
+func bytesToMB(value int64) float64 {
+	return float64(value) / 1_000_000
+}
+
+func valueOrUnknown(value string) string {
+	if value == "" {
+		return "unknown"
+	}
+	return value
+}
+
+func intsToString(values []int) string {
+	parts := make([]string, 0, len(values))
+	for _, value := range values {
+		parts = append(parts, fmt.Sprint(value))
+	}
+	return strings.Join(parts, " ")
 }

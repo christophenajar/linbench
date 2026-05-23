@@ -16,7 +16,7 @@ import (
 	"linbench/internal/unit"
 )
 
-const version = "0.1.5"
+const version = "0.1.6"
 
 func main() {
 	os.Exit(run(os.Args[1:]))
@@ -101,11 +101,15 @@ func run(args []string) int {
 	result := model.BenchmarkResult{
 		System:          system.ReadSystemInfo(),
 		BenchmarkEngine: benchmark.EngineName(),
+		NUMA:            system.ReadNUMAInfo(),
 	}
+	result.NUMA.Recommendations = numaRecommendations(result.NUMA, durationText, memoryText)
 	if verbose {
 		fmt.Fprintf(os.Stderr, "duration=%s threads=%d memory=%d disk=%d\n", duration, threads, memorySize, diskSize)
 	}
-	if result.System.CPUSockets > 1 && (sections.Memory || sections.Cache) {
+	if result.NUMA.NodeCount > 1 && (sections.Memory || sections.Cache) {
+		result.Warnings = append(result.Warnings, "numa: multiple NUMA nodes detected; memory and cache results may depend on CPU and memory binding")
+	} else if result.System.CPUSockets > 1 && (sections.Memory || sections.Cache) {
 		result.Warnings = append(result.Warnings, "system: multiple CPU sockets detected; memory and cache results may depend on NUMA placement")
 	}
 
@@ -227,4 +231,24 @@ func isMemoryBackedFS(fsType string) bool {
 	default:
 		return false
 	}
+}
+
+func numaRecommendations(info model.NUMAInfo, durationText string, memoryText string) []string {
+	if info.NodeCount <= 1 || len(info.Nodes) == 0 {
+		return nil
+	}
+	if memoryText == "" {
+		memoryText = "1G"
+	}
+	nodeID := info.Nodes[0].ID
+	recommendations := []string{
+		fmt.Sprintf("numactl --cpunodebind=%d --membind=%d ./bin/linbench-linux-amd64 --ram --cache --duration %s --memory-size %s", nodeID, nodeID, durationText, memoryText),
+	}
+	if len(info.Nodes) > 1 {
+		remoteID := info.Nodes[1].ID
+		recommendations = append(recommendations,
+			fmt.Sprintf("numactl --cpunodebind=%d --membind=%d ./bin/linbench-linux-amd64 --ram --cache --duration %s --memory-size %s", nodeID, remoteID, durationText, memoryText),
+		)
+	}
+	return recommendations
 }

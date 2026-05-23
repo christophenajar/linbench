@@ -27,7 +27,7 @@ func TestFormatText(t *testing.T) {
 	result := sampleResult()
 	result.Warnings = []string{"disk: example warning"}
 	text := FormatText(result, model.Sections{Memory: true, Cache: true, CPU: true, Disk: true})
-	for _, want := range []string{"Memory", "L1 Cache", "CPU", "Disk", "Warnings", "Note:"} {
+	for _, want := range []string{"NUMA", "Recommended", "Memory", "L1 Cache", "CPU", "Disk", "Warnings", "Note:"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("text output missing %q:\n%s", want, text)
 		}
@@ -42,8 +42,19 @@ func sampleResult() model.BenchmarkResult {
 			Hostname:   "host",
 			Kernel:     "6.8.0",
 			CPUModel:   "Example CPU",
+			CPUSockets: 2,
 			CPUCores:   8,
 			CPUThreads: 16,
+		},
+		BenchmarkEngine: "cgo",
+		NUMA: model.NUMAInfo{
+			Available: true,
+			NodeCount: 2,
+			Nodes: []model.NUMANodeInfo{
+				{ID: 0, CPUs: "0-7", MemTotalBytes: 1024 * 1024 * 1024, MemFreeBytes: 512 * 1024 * 1024, Distance: []int{10, 21}},
+				{ID: 1, CPUs: "8-15", MemTotalBytes: 1024 * 1024 * 1024, MemFreeBytes: 512 * 1024 * 1024, Distance: []int{21, 10}},
+			},
+			Recommendations: []string{"numactl --cpunodebind=0 --membind=0 ./bin/linbench-linux-amd64 --ram --cache --duration 5s --memory-size 1G"},
 		},
 		Memory: model.MemoryResult{ReadMBS: 1, WriteMBS: 2, CopyMBS: 3, LatencyNS: 4},
 		Cache: model.CacheResult{

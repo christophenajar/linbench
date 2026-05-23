@@ -3,6 +3,7 @@ package model
 type BenchmarkResult struct {
 	System          SystemInfo   `json:"system"`
 	BenchmarkEngine string       `json:"benchmark_engine"`
+	NUMA            NUMAInfo     `json:"numa"`
 	Memory          MemoryResult `json:"memory"`
 	Cache           CacheResult  `json:"cache"`
 	CPU             CPUResult    `json:"cpu"`
@@ -27,6 +28,21 @@ type MemoryResult struct {
 	WriteMBS  float64 `json:"write_mb_s"`
 	CopyMBS   float64 `json:"copy_mb_s"`
 	LatencyNS float64 `json:"latency_ns"`
+}
+
+type NUMAInfo struct {
+	Available       bool           `json:"available"`
+	NodeCount       int            `json:"node_count"`
+	Nodes           []NUMANodeInfo `json:"nodes,omitempty"`
+	Recommendations []string       `json:"recommendations,omitempty"`
+}
+
+type NUMANodeInfo struct {
+	ID            int    `json:"id"`
+	CPUs          string `json:"cpus"`
+	MemTotalBytes int64  `json:"mem_total_bytes"`
+	MemFreeBytes  int64  `json:"mem_free_bytes"`
+	Distance      []int  `json:"distance,omitempty"`
 }
 
 type CacheLevelResult struct {
