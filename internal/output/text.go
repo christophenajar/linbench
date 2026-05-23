@@ -1,0 +1,80 @@
+package output
+
+import (
+	"fmt"
+	"strings"
+
+	"linbench/internal/model"
+)
+
+func FormatText(result model.BenchmarkResult, sections model.Sections) string {
+	var b strings.Builder
+	fmt.Fprintln(&b, "Linux Hardware Benchmark")
+	fmt.Fprintln(&b, "========================")
+	fmt.Fprintln(&b)
+
+	fmt.Fprintln(&b, "System")
+	fmt.Fprintf(&b, "  OS        : %s/%s\n", result.System.OS, result.System.Arch)
+	fmt.Fprintf(&b, "  Hostname  : %s\n", result.System.Hostname)
+	fmt.Fprintf(&b, "  Kernel    : %s\n", result.System.Kernel)
+	fmt.Fprintf(&b, "  CPU Model : %s\n", result.System.CPUModel)
+	fmt.Fprintf(&b, "  Cores     : %d\n", result.System.CPUCores)
+	fmt.Fprintf(&b, "  Threads   : %d\n", result.System.CPUThreads)
+	fmt.Fprintln(&b)
+
+	if sections.Memory {
+		fmt.Fprintln(&b, "Memory")
+		fmt.Fprintf(&b, "  Read      : %.0f MB/s\n", result.Memory.ReadMBS)
+		fmt.Fprintf(&b, "  Write     : %.0f MB/s\n", result.Memory.WriteMBS)
+		fmt.Fprintf(&b, "  Copy      : %.0f MB/s\n", result.Memory.CopyMBS)
+		fmt.Fprintf(&b, "  Latency   : %.1f ns\n", result.Memory.LatencyNS)
+		fmt.Fprintln(&b)
+	}
+
+	if sections.Cache {
+		writeCacheLevel(&b, "L1 Cache", result.Cache.L1)
+		writeCacheLevel(&b, "L2 Cache", result.Cache.L2)
+		writeCacheLevel(&b, "L3 Cache", result.Cache.L3)
+	}
+
+	if sections.CPU {
+		fmt.Fprintln(&b, "CPU")
+		fmt.Fprintf(&b, "  Integer   : %.0f ops/s\n", result.CPU.IntegerScore)
+		fmt.Fprintf(&b, "  Float     : %.0f ops/s\n", result.CPU.FloatScore)
+		fmt.Fprintf(&b, "  SHA-256   : %.0f MB/s\n", result.CPU.SHA256MBS)
+		fmt.Fprintf(&b, "  Gzip      : %.0f MB/s\n", result.CPU.CompressionMBS)
+		fmt.Fprintln(&b)
+	}
+
+	if sections.Disk {
+		fmt.Fprintln(&b, "Disk")
+		fmt.Fprintf(&b, "  Path      : %s\n", result.Disk.Path)
+		fmt.Fprintf(&b, "  Read      : %.0f MB/s\n", result.Disk.SequentialReadMBS)
+		fmt.Fprintf(&b, "  Write     : %.0f MB/s\n", result.Disk.SequentialWriteMBS)
+		fmt.Fprintf(&b, "  IOPS Read : %.0f\n", result.Disk.RandomReadIOPS)
+		fmt.Fprintf(&b, "  IOPS Write: %.0f\n", result.Disk.RandomWriteIOPS)
+		fmt.Fprintf(&b, "  Latency   : %.3f ms\n", result.Disk.LatencyMS)
+		fmt.Fprintln(&b)
+	}
+
+	if len(result.Errors) > 0 {
+		fmt.Fprintln(&b, "Errors")
+		for _, err := range result.Errors {
+			fmt.Fprintf(&b, "  - %s\n", err)
+		}
+		fmt.Fprintln(&b)
+	}
+
+	fmt.Fprintln(&b, "Note: results may vary depending on CPU frequency scaling, system load, thermal limits and OS cache.")
+	return b.String()
+}
+
+func writeCacheLevel(b *strings.Builder, name string, result model.CacheLevelResult) {
+	fmt.Fprintln(b, name)
+	fmt.Fprintf(b, "  Size      : %d bytes\n", result.SizeBytes)
+	fmt.Fprintf(b, "  Read      : %.1f GB/s\n", result.ReadGBS)
+	fmt.Fprintf(b, "  Write     : %.1f GB/s\n", result.WriteGBS)
+	fmt.Fprintf(b, "  Copy      : %.1f GB/s\n", result.CopyGBS)
+	fmt.Fprintf(b, "  Latency   : %.1f ns\n", result.LatencyNS)
+	fmt.Fprintln(b)
+}
