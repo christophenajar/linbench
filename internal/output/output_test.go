@@ -24,8 +24,10 @@ func TestFormatJSON(t *testing.T) {
 }
 
 func TestFormatText(t *testing.T) {
-	text := FormatText(sampleResult(), model.Sections{Memory: true, Cache: true, CPU: true, Disk: true})
-	for _, want := range []string{"Memory", "L1 Cache", "CPU", "Disk", "Note:"} {
+	result := sampleResult()
+	result.Warnings = []string{"disk: example warning"}
+	text := FormatText(result, model.Sections{Memory: true, Cache: true, CPU: true, Disk: true})
+	for _, want := range []string{"Memory", "L1 Cache", "CPU", "Disk", "Warnings", "Note:"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("text output missing %q:\n%s", want, text)
 		}

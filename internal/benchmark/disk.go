@@ -48,12 +48,14 @@ func RunDisk(options DiskOptions) (model.DiskResult, error) {
 		return result, err
 	}
 	result.SequentialWriteMBS = writeMBS
+	fadviseDontNeed(file)
 
 	readMBS, err := sequentialRead(file)
 	if err != nil {
 		return result, err
 	}
 	result.SequentialReadMBS = readMBS
+	fadviseDontNeed(file)
 
 	readIOPS, latencyMS, err := randomRead(file, options.SizeBytes, options.Duration)
 	if err != nil {

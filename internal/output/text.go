@@ -57,6 +57,14 @@ func FormatText(result model.BenchmarkResult, sections model.Sections) string {
 		fmt.Fprintln(&b)
 	}
 
+	if len(result.Warnings) > 0 {
+		fmt.Fprintln(&b, "Warnings")
+		for _, warning := range result.Warnings {
+			fmt.Fprintf(&b, "  - %s\n", warning)
+		}
+		fmt.Fprintln(&b)
+	}
+
 	if len(result.Errors) > 0 {
 		fmt.Fprintln(&b, "Errors")
 		for _, err := range result.Errors {

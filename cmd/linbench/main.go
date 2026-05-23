@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"time"
@@ -15,7 +16,7 @@ import (
 	"linbench/internal/unit"
 )
 
-const version = "0.1.0"
+const version = "0.1.2"
 
 func main() {
 	os.Exit(run(os.Args[1:]))
@@ -52,7 +53,7 @@ func run(args []string) int {
 	fs.StringVar(&durationText, "duration", "1s", "approximate duration of each test")
 	fs.StringVar(&threadsText, "threads", "auto", "CPU benchmark thread count or auto")
 	fs.StringVar(&memoryText, "memory-size", "", "memory buffer size, e.g. 512M or 1G")
-	fs.StringVar(&diskPath, "disk-path", os.TempDir(), "directory for disk test file")
+	fs.StringVar(&diskPath, "disk-path", defaultDiskPath(), "directory for disk test file")
 	fs.StringVar(&diskText, "disk-size", "256M", "disk test file size")
 	fs.BoolVar(&keepFile, "keep-test-file", false, "keep disk benchmark temporary file")
 	fs.BoolVar(&noSync, "no-sync", false, "skip fsync during disk write tests")
@@ -112,6 +113,7 @@ func run(args []string) int {
 		result.CPU = benchmark.RunCPU(threads, duration)
 	}
 	if sections.Disk {
+		result.Warnings = append(result.Warnings, diskWarnings(diskPath, diskSize, noSync)...)
 		disk, err := benchmark.RunDisk(benchmark.DiskOptions{
 			Path:         diskPath,
 			SizeBytes:    diskSize,
@@ -178,4 +180,45 @@ func chooseMemorySize(value string) (int64, error) {
 		return size, nil
 	}
 	return 256 * unit.MiB, nil
+}
+
+func defaultDiskPath() string {
+	home, err := os.UserHomeDir()
+	if err == nil && home != "" {
+		candidate := filepath.Join(home, "tmp")
+		if info, statErr := os.Stat(candidate); statErr == nil && info.IsDir() {
+			return candidate
+		}
+	}
+	return os.TempDir()
+}
+
+func diskWarnings(path string, sizeBytes int64, noSync bool) []string {
+	var warnings []string
+	if noSync {
+		warnings = append(warnings, "disk: --no-sync measures buffered writes and may not reflect flushed storage performance")
+	}
+	if sizeBytes < unit.GiB {
+		warnings = append(warnings, "disk: --disk-size below 1G is more sensitive to page cache effects")
+	}
+	if path == "" {
+		path = os.TempDir()
+	}
+	clean := filepath.Clean(path)
+	if clean == "/tmp" || clean == os.TempDir() {
+		warnings = append(warnings, "disk: /tmp may be tmpfs or heavily cached; use a real mount point such as /var/tmp or /mnt/data for storage measurements")
+	}
+	if fsType, ok := system.FilesystemForPath(clean); ok && isMemoryBackedFS(fsType) {
+		warnings = append(warnings, fmt.Sprintf("disk: %s is on %s, a memory-backed filesystem; results do not represent a physical disk", clean, fsType))
+	}
+	return warnings
+}
+
+func isMemoryBackedFS(fsType string) bool {
+	switch fsType {
+	case "tmpfs", "ramfs", "devtmpfs":
+		return true
+	default:
+		return false
+	}
 }

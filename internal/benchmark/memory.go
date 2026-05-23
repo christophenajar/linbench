@@ -10,43 +10,33 @@ import (
 
 func RunMemory(sizeBytes int64, duration time.Duration) model.MemoryResult {
 	sizeBytes = clampSize(sizeBytes, 64*unit.MiB, 2*unit.GiB)
-	buf := make([]byte, sizeBytes)
-	src := make([]byte, sizeBytes/2)
-	dst := make([]byte, sizeBytes/2)
-	for i := range src {
-		src[i] = byte(i)
-	}
+	words := int(sizeBytes / 8)
+	copyWords := words / 2
+	buf := make([]uint64, words)
+	src := make([]uint64, copyWords)
+	dst := make([]uint64, copyWords)
+	fillUint64(buf)
+	fillUint64(src)
 
 	runtime.GC()
-	readBPS := timedBandwidth(duration, func() int64 {
-		var sum uint64
-		for i := 0; i < len(buf); i += 64 {
-			sum += uint64(buf[i])
-		}
-		Sink = sum
-		return int64(len(buf))
-	})
+	readBPS := readBandwidth(buf, duration)
 
 	runtime.GC()
-	writeBPS := timedBandwidth(duration, func() int64 {
-		for i := range buf {
-			buf[i] = byte(i)
-		}
-		Sink = uint64(buf[len(buf)-1])
-		return int64(len(buf))
-	})
+	writeBPS := writeBandwidth(buf, duration)
 
 	runtime.GC()
-	copyBPS := timedBandwidth(duration, func() int64 {
-		n := copy(dst, src)
-		Sink = uint64(dst[n-1])
-		return int64(n)
-	})
+	copyBPS := copyBandwidth(dst, src, duration)
+
+	buf = nil
+	src = nil
+	dst = nil
+	runtime.GC()
+	latency := latencyNS(sizeBytes, duration)
 
 	return model.MemoryResult{
 		ReadMBS:   readBPS / unit.MB,
 		WriteMBS:  writeBPS / unit.MB,
 		CopyMBS:   copyBPS / unit.MB,
-		LatencyNS: latencyNS(sizeBytes, duration),
+		LatencyNS: latency,
 	}
 }

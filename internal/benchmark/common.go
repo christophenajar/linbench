@@ -29,13 +29,28 @@ func timedBandwidth(duration time.Duration, fn func() int64) float64 {
 }
 
 func latencyNS(sizeBytes int64, duration time.Duration) float64 {
-	const minEntries = 1024
-	count := int(sizeBytes / 64)
+	const (
+		minEntries            = 1024
+		maxLatencyWorkingSet  = 128 * 1024 * 1024
+		pointerChaseWordBytes = 4
+	)
+	if sizeBytes > maxLatencyWorkingSet {
+		sizeBytes = maxLatencyWorkingSet
+	}
+	count := int(sizeBytes / pointerChaseWordBytes)
 	if count < minEntries {
 		count = minEntries
 	}
-	indices := rand.New(rand.NewSource(1)).Perm(count)
-	next := make([]int, count)
+	rng := rand.New(rand.NewSource(1))
+	indices := make([]uint32, count)
+	for i := range indices {
+		indices[i] = uint32(i)
+	}
+	rng.Shuffle(count, func(i, j int) {
+		indices[i], indices[j] = indices[j], indices[i]
+	})
+
+	next := make([]uint32, count)
 	for i := 0; i < count-1; i++ {
 		next[indices[i]] = indices[i+1]
 	}
@@ -44,9 +59,10 @@ func latencyNS(sizeBytes int64, duration time.Duration) float64 {
 	if duration <= 0 {
 		duration = 200 * time.Millisecond
 	}
+	idx := indices[0]
+	indices = nil
 	runtime.GC()
 	deadline := time.Now().Add(duration)
-	idx := indices[0]
 	accesses := 0
 	start := time.Now()
 	for {
@@ -63,6 +79,16 @@ func latencyNS(sizeBytes int64, duration time.Duration) float64 {
 		return 0
 	}
 	return float64(time.Since(start).Nanoseconds()) / float64(accesses)
+}
+
+func fillUint64(values []uint64) {
+	var x uint64 = 0x9e3779b97f4a7c15
+	for i := range values {
+		x ^= x >> 12
+		x ^= x << 25
+		x ^= x >> 27
+		values[i] = x * 0x2545f4914f6cdd1d
+	}
 }
 
 func clampSize(size, min, max int64) int64 {

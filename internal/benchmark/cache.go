@@ -23,47 +23,43 @@ func RunCache(duration time.Duration) model.CacheResult {
 	}
 
 	return model.CacheResult{
-		L1: runCacheLevel(sizes[1], sizes[1]*3/4, duration),
-		L2: runCacheLevel(sizes[2], sizes[2]*3/4, duration),
-		L3: runCacheLevel(sizes[3], sizes[3]*3/4, duration),
+		L1: runCacheLevel(sizes[1], cacheBenchSize(0, sizes[1]), duration),
+		L2: runCacheLevel(sizes[2], cacheBenchSize(sizes[1], sizes[2]), duration),
+		L3: runCacheLevel(sizes[3], cacheBenchSize(sizes[2], sizes[3]), duration),
 	}
+}
+
+func cacheBenchSize(lowerLevelSize, cacheSize int64) int64 {
+	target := cacheSize * 3 / 4
+	if lowerLevelSize > 0 {
+		min := lowerLevelSize * 2
+		if target < min && min < cacheSize {
+			target = min
+		}
+	}
+	return target
 }
 
 func runCacheLevel(cacheSize, benchSize int64, duration time.Duration) model.CacheLevelResult {
 	benchSize = clampSize(benchSize, 4*unit.KiB, cacheSize)
-	buf := make([]byte, benchSize)
-	src := make([]byte, benchSize)
-	dst := make([]byte, benchSize)
-	for i := range src {
-		src[i] = byte(i)
-		buf[i] = byte(i)
+	words := int(benchSize / 8)
+	if words < 1024 {
+		words = 1024
 	}
+	buf := make([]uint64, words)
+	src := make([]uint64, words)
+	dst := make([]uint64, words)
+	fillUint64(buf)
+	fillUint64(src)
 
 	runtime.GC()
-	readBPS := timedBandwidth(duration, func() int64 {
-		var sum uint64
-		for i := 0; i < len(buf); i += 8 {
-			sum += uint64(buf[i])
-		}
-		Sink = sum
-		return int64(len(buf))
-	})
+	readBPS := readBandwidth(buf, duration)
 
 	runtime.GC()
-	writeBPS := timedBandwidth(duration, func() int64 {
-		for i := range buf {
-			buf[i] = byte(i)
-		}
-		Sink = uint64(buf[len(buf)-1])
-		return int64(len(buf))
-	})
+	writeBPS := writeBandwidth(buf, duration)
 
 	runtime.GC()
-	copyBPS := timedBandwidth(duration, func() int64 {
-		n := copy(dst, src)
-		Sink = uint64(dst[n-1])
-		return int64(n)
-	})
+	copyBPS := copyBandwidth(dst, src, duration)
 
 	return model.CacheLevelResult{
 		SizeBytes: cacheSize,

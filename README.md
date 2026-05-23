@@ -2,6 +2,8 @@
 
 `linbench` est un outil de benchmark matériel en ligne de commande pour Linux, écrit en Go.
 
+Version actuelle : `0.1.2`.
+
 Il mesure les performances principales d'une machine sans interface graphique :
 
 - RAM : lecture, écriture, copie et latence
@@ -24,11 +26,67 @@ Construire le binaire :
 go build -o linbench ./cmd/linbench
 ```
 
-Construire explicitement pour Linux amd64 depuis une autre plateforme :
+Construire un binaire Linux amd64 pure-Go depuis une autre plateforme :
 
 ```bash
-GOOS=linux GOARCH=amd64 go build -o linbench ./cmd/linbench
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags '-s -w' -o bin/linbench-linux-amd64 ./cmd/linbench
 ```
+
+Construire sur Linux avec les noyaux C optimisés pour les débits RAM/cache :
+
+```bash
+CGO_ENABLED=1 go build -trimpath -ldflags '-s -w' -o bin/linbench-linux-amd64 ./cmd/linbench
+```
+
+Le build cgo demande un compilateur C local, par exemple `gcc`. Il est recommandé de le compiler directement sur la machine Debian cible. Le build `CGO_ENABLED=0` reste supporté et utilise les boucles Go de repli.
+
+### Build optimise cgo sur Debian
+
+Depuis `0.1.2`, les benchmarks de debit RAM/cache peuvent utiliser des noyaux C via cgo. Ce mode reduit le cout des boucles Go et donne des debits cache plus proches de ce que le materiel peut faire.
+
+Sur Debian, installer les outils de compilation :
+
+```bash
+sudo apt update
+sudo apt install -y golang build-essential git
+```
+
+Recuperer le projet et compiler avec cgo :
+
+```bash
+git clone https://github.com/christophenajar/linbench.git
+cd linbench
+mkdir -p bin
+CGO_ENABLED=1 go build -trimpath -ldflags '-s -w' -o bin/linbench-linux-amd64 ./cmd/linbench
+```
+
+Verifier la version :
+
+```bash
+./bin/linbench-linux-amd64 --version
+```
+
+Verifier que le binaire utilise bien cgo :
+
+```bash
+ldd ./bin/linbench-linux-amd64
+```
+
+Un binaire cgo affiche des bibliotheques dynamiques comme `libc.so.6`. Un binaire pure-Go compile avec `CGO_ENABLED=0` est generalement indique comme `statically linked` par `file`.
+
+Tester uniquement RAM/cache avec les noyaux C :
+
+```bash
+./bin/linbench-linux-amd64 --ram --cache --duration 5s --memory-size 1G
+```
+
+Pour un binaire portable sans dependance libc dynamique, utiliser le fallback pure-Go :
+
+```bash
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags '-s -w' -o bin/linbench-linux-amd64 ./cmd/linbench
+```
+
+Ce binaire reste plus simple a distribuer, mais les debits RAM/cache seront limites par les boucles Go.
 
 ## Utilisation
 
@@ -113,6 +171,7 @@ La sortie JSON expose une structure stable avec les blocs suivants :
 - `cache`
 - `cpu`
 - `disk`
+- `warnings`, présent uniquement si les conditions de test peuvent fausser fortement les résultats
 - `errors`, présent uniquement si une section a échoué sans bloquer les autres
 
 Exemple :
@@ -170,6 +229,18 @@ Il mesure :
 
 Le benchmark disque crée un fichier temporaire dans `--disk-path`, mesure des accès séquentiels et aléatoires, puis supprime le fichier par défaut.
 
+Par défaut, `linbench` utilise `~/tmp` si ce dossier existe. Sinon il utilise le dossier temporaire du système.
+
+Depuis `0.1.1`, le benchmark tente de réduire l'effet du cache de page Linux avant les lectures avec `posix_fadvise(..., DONTNEED)`. Ce n'est pas une garantie absolue : le cache OS, le contrôleur disque et le filesystem peuvent encore influencer les résultats.
+
+Pour éviter de mesurer surtout la RAM ou le cache OS, préférer un chemin sur un vrai disque et un fichier plus grand :
+
+```bash
+./linbench --disk --disk-path /var/tmp --disk-size 4G --duration 5s
+```
+
+`linbench` affiche des warnings si `--disk-path` pointe vers `/tmp`, un filesystem mémoire comme `tmpfs`, si `--disk-size` est inférieur à `1G`, ou si `--no-sync` est utilisé.
+
 Le fichier est conservé uniquement avec :
 
 ```bash
@@ -177,6 +248,20 @@ Le fichier est conservé uniquement avec :
 ```
 
 `--no-sync` permet de ne pas forcer `fsync`, ce qui mesure davantage l'effet du cache OS que le débit réellement flushé.
+
+## Changements 0.1.1
+
+- Boucles RAM et cache en `uint64` au lieu de parcours byte-par-byte.
+- Lecture RAM/cache sur tous les mots du buffer, avec comptage des octets réellement lus.
+- Latence cache corrigée avec un working set dimensionné au niveau ciblé.
+- Tentative de purge du cache de page Linux avant lecture disque via `posix_fadvise`.
+- Warnings visibles en texte et JSON pour `/tmp`, `tmpfs`, petites tailles disque et `--no-sync`.
+
+## Changements 0.1.2
+
+- Noyaux C optionnels via cgo pour les débits RAM/cache.
+- Fallback Go automatique quand `CGO_ENABLED=0`.
+- Chemin disque par défaut changé vers `~/tmp` quand ce dossier existe.
 
 ## Développement
 
@@ -215,5 +300,3 @@ GOCACHE=/private/tmp/go-build-cache go test ./...
 Les résultats peuvent varier selon la fréquence CPU, le gouverneur d'alimentation, la température, la charge système, NUMA, la virtualisation et le cache disque Linux.
 
 Le projet fournit des mesures pratiques et rapides, pas un protocole de benchmark scientifique strict.
-
-
