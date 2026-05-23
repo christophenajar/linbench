@@ -2,7 +2,7 @@
 
 `linbench` est un outil de benchmark matériel en ligne de commande pour Linux, écrit en Go.
 
-Version actuelle : `0.1.6`.
+Version actuelle : `0.2.0`.
 
 Il mesure les performances principales d'une machine sans interface graphique :
 
@@ -10,6 +10,7 @@ Il mesure les performances principales d'une machine sans interface graphique :
 - caches CPU L1, L2 et L3 : débit et latence
 - CPU : score entier, score flottant, SHA-256 et compression gzip
 - disque : lecture/écriture séquentielle, IOPS aléatoires et latence
+- réseau : audit NIC, PCIe, NUMA, RDMA/RoCE et IRQ affinity
 
 Le projet vise une première version simple, maintenable et utilisable sans privilèges root pour les tests RAM, cache et CPU. Le benchmark disque travaille uniquement sur un fichier temporaire dans un dossier choisi, jamais sur un périphérique brut.
 
@@ -117,6 +118,7 @@ Lancer un seul groupe de tests :
 ./linbench --cache
 ./linbench --cpu
 ./linbench --disk
+./linbench --network
 ```
 
 Produire du JSON :
@@ -151,6 +153,7 @@ Tester un chemin disque précis :
 --cache               Lance uniquement le benchmark cache CPU
 --cpu                 Lance uniquement le benchmark CPU
 --disk                Lance uniquement le benchmark disque
+--network             Lance uniquement l'audit réseau/RDMA/NUMA
 
 --json                Sortie JSON
 --output FILE         Écrit le résultat dans un fichier
@@ -181,6 +184,7 @@ La sortie JSON expose une structure stable avec les blocs suivants :
 - `cache`
 - `cpu`
 - `disk`
+- `network`
 - `warnings`, présent uniquement si les conditions de test peuvent fausser fortement les résultats
 - `errors`, présent uniquement si une section a échoué sans bloquer les autres
 
@@ -293,6 +297,60 @@ Le fichier est conservé uniquement avec :
 
 `--no-sync` permet de ne pas forcer `fsync`, ce qui mesure davantage l'effet du cache OS que le débit réellement flushé.
 
+### Network / RDMA
+
+Depuis `0.2.0`, `linbench` inclut un audit réseau passif pour les serveurs haute performance, notamment Mellanox / NVIDIA ConnectX et RoCE.
+
+Lancer uniquement l'audit réseau :
+
+```bash
+./bin/linbench-linux-amd64 --network
+```
+
+Le module lit les informations depuis Linux, sans générer de trafic réseau :
+
+```text
+/sys/class/net
+/sys/class/net/<iface>/device
+/sys/class/infiniband
+/proc/irq
+/proc/interrupts
+/proc/self/status
+```
+
+Il vérifie :
+
+- interfaces réseau et driver
+- interfaces Mellanox / NVIDIA `mlx5`
+- mapping netdev vers adresse PCI
+- NUMA node du périphérique PCIe
+- CPU list locale du périphérique
+- vitesse et largeur PCIe courantes/max
+- MTU, état du lien, vitesse du lien
+- device RDMA associé, par exemple `mlx5_0`
+- disponibilité RoCE via les GID types RDMA
+- IRQ MSI/MSI-X et `smp_affinity_list`
+- affinité CPU du processus courant
+- présence des outils RDMA perftest : `ib_write_bw`, `ib_read_bw`, `ib_send_bw`, `ib_write_lat`, `ib_read_lat`, `ib_send_lat`
+
+Le module signale notamment :
+
+- process exécuté sur des CPUs hors du NUMA node local de la NIC
+- IRQs mlx5 autorisées sur des CPUs distants
+- lien réseau down ou vitesse inférieure à 25 Gb/s sur carte Mellanox
+- MTU inférieur à 9000 quand RoCE est détecté
+- lien PCIe dégradé par rapport à la capacité max
+- device RDMA manquant
+- outils perftest manquants
+
+Sur une machine NUMA, l'audit recommande une commande alignant CPU et mémoire sur le node local de la NIC :
+
+```bash
+numactl --cpunodebind=0 --membind=0 ./bin/linbench-linux-amd64 --network
+```
+
+Les tests actifs RDMA, comme `ib_write_bw` ou `ib_read_bw`, ne sont pas lancés automatiquement en `0.2.0`, car ils nécessitent un pair distant et une configuration RoCE correcte. Le module se limite à vérifier que la machine locale est cohérente avant de lancer ces outils manuellement.
+
 ## Changements 0.1.1
 
 - Boucles RAM et cache en `uint64` au lieu de parcours byte-par-byte.
@@ -330,6 +388,15 @@ Le fichier est conservé uniquement avec :
 - Ajout d'une section NUMA dans la sortie texte et JSON.
 - Lecture des nodes, CPU lists, meminfo et distances depuis `/sys/devices/system/node`.
 - Recommandations automatiques de commandes `numactl` quand plusieurs nodes NUMA sont detectes.
+
+## Changements 0.2.0
+
+- Ajout de `--network`.
+- Audit passif des interfaces réseau, PCIe, NUMA, RDMA/RoCE et IRQ affinity.
+- Détection Mellanox / NVIDIA `mlx5`.
+- Mapping netdev vers PCI address et NUMA node.
+- Détection des outils RDMA perftest installés.
+- Warnings et recommandations `numactl` pour aligner process, mémoire et NIC sur le même node NUMA.
 
 ## Développement
 

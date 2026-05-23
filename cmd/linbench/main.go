@@ -6,7 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"linbench/internal/benchmark"
@@ -16,7 +18,7 @@ import (
 	"linbench/internal/unit"
 )
 
-const version = "0.1.6"
+const version = "0.2.0"
 
 func main() {
 	os.Exit(run(os.Args[1:]))
@@ -29,6 +31,7 @@ func run(args []string) int {
 		cacheFlag    bool
 		cpuFlag      bool
 		diskFlag     bool
+		networkFlag  bool
 		jsonFlag     bool
 		outputFile   string
 		durationText string
@@ -48,6 +51,7 @@ func run(args []string) int {
 	fs.BoolVar(&cacheFlag, "cache", false, "run CPU cache benchmark")
 	fs.BoolVar(&cpuFlag, "cpu", false, "run CPU benchmark")
 	fs.BoolVar(&diskFlag, "disk", false, "run disk benchmark")
+	fs.BoolVar(&networkFlag, "network", false, "run network/RDMA/NUMA audit")
 	fs.BoolVar(&jsonFlag, "json", false, "write JSON output")
 	fs.StringVar(&outputFile, "output", "", "write output to file")
 	fs.StringVar(&durationText, "duration", "1s", "approximate duration of each test")
@@ -68,13 +72,14 @@ func run(args []string) int {
 	}
 
 	sections := model.Sections{
-		Memory: ramFlag,
-		Cache:  cacheFlag,
-		CPU:    cpuFlag,
-		Disk:   diskFlag,
+		Memory:  ramFlag,
+		Cache:   cacheFlag,
+		CPU:     cpuFlag,
+		Disk:    diskFlag,
+		Network: networkFlag,
 	}
-	if allFlag || (!ramFlag && !cacheFlag && !cpuFlag && !diskFlag) {
-		sections = model.Sections{Memory: true, Cache: true, CPU: true, Disk: true}
+	if allFlag || (!ramFlag && !cacheFlag && !cpuFlag && !diskFlag && !networkFlag) {
+		sections = model.Sections{Memory: true, Cache: true, CPU: true, Disk: true, Network: true}
 	}
 
 	duration, err := time.ParseDuration(durationText)
@@ -134,6 +139,17 @@ func run(args []string) int {
 		result.Disk = disk
 		if err != nil {
 			result.Errors = append(result.Errors, "disk: "+err.Error())
+		}
+	}
+	if sections.Network {
+		result.Network = system.ReadNetworkInfo()
+		if missing := missingPerftestTools(result.Network.PerftestTools); len(missing) > 0 {
+			result.Warnings = append(result.Warnings, "network: RDMA perftest tools are missing: "+strings.Join(missing, ", "))
+		}
+		for _, iface := range result.Network.Interfaces {
+			for _, warning := range iface.Warnings {
+				result.Warnings = append(result.Warnings, fmt.Sprintf("network %s: %s", iface.Name, warning))
+			}
 		}
 	}
 
@@ -251,4 +267,15 @@ func numaRecommendations(info model.NUMAInfo, durationText string, memoryText st
 		)
 	}
 	return recommendations
+}
+
+func missingPerftestTools(tools map[string]bool) []string {
+	var missing []string
+	for tool, found := range tools {
+		if !found {
+			missing = append(missing, tool)
+		}
+	}
+	sort.Strings(missing)
+	return missing
 }

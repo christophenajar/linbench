@@ -35,3 +35,17 @@ func TestNUMARecommendations(t *testing.T) {
 		t.Fatalf("remote recommendation = %q", recommendations[1])
 	}
 }
+
+func TestMissingPerftestTools(t *testing.T) {
+	missing := missingPerftestTools(map[string]bool{
+		"ib_write_bw":  false,
+		"ib_read_bw":   true,
+		"ib_write_lat": false,
+	})
+	if len(missing) != 2 {
+		t.Fatalf("len = %d", len(missing))
+	}
+	if missing[0] != "ib_write_bw" || missing[1] != "ib_write_lat" {
+		t.Fatalf("missing = %#v", missing)
+	}
+}

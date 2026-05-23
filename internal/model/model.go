@@ -1,15 +1,16 @@
 package model
 
 type BenchmarkResult struct {
-	System          SystemInfo   `json:"system"`
-	BenchmarkEngine string       `json:"benchmark_engine"`
-	NUMA            NUMAInfo     `json:"numa"`
-	Memory          MemoryResult `json:"memory"`
-	Cache           CacheResult  `json:"cache"`
-	CPU             CPUResult    `json:"cpu"`
-	Disk            DiskResult   `json:"disk"`
-	Warnings        []string     `json:"warnings,omitempty"`
-	Errors          []string     `json:"errors,omitempty"`
+	System          SystemInfo    `json:"system"`
+	BenchmarkEngine string        `json:"benchmark_engine"`
+	NUMA            NUMAInfo      `json:"numa"`
+	Memory          MemoryResult  `json:"memory"`
+	Cache           CacheResult   `json:"cache"`
+	CPU             CPUResult     `json:"cpu"`
+	Disk            DiskResult    `json:"disk"`
+	Network         NetworkResult `json:"network"`
+	Warnings        []string      `json:"warnings,omitempty"`
+	Errors          []string      `json:"errors,omitempty"`
 }
 
 type SystemInfo struct {
@@ -75,9 +76,48 @@ type DiskResult struct {
 	LatencyMS          float64 `json:"latency_ms"`
 }
 
+type NetworkResult struct {
+	ProcessCPUs     string             `json:"process_cpus"`
+	Interfaces      []NetworkInterface `json:"interfaces,omitempty"`
+	PerftestTools   map[string]bool    `json:"perftest_tools,omitempty"`
+	Recommendations []string           `json:"recommendations,omitempty"`
+}
+
+type NetworkInterface struct {
+	Name             string    `json:"name"`
+	Driver           string    `json:"driver"`
+	MAC              string    `json:"mac"`
+	OperState        string    `json:"oper_state"`
+	MTU              int       `json:"mtu"`
+	SpeedMbps        int       `json:"speed_mbps"`
+	BondMaster       string    `json:"bond_master,omitempty"`
+	PCIAddress       string    `json:"pci_address"`
+	VendorID         string    `json:"vendor_id"`
+	DeviceID         string    `json:"device_id"`
+	IsMellanox       bool      `json:"is_mellanox"`
+	NUMANode         int       `json:"numa_node"`
+	LocalCPUs        string    `json:"local_cpus"`
+	PCIeCurrentSpeed string    `json:"pcie_current_speed"`
+	PCIeCurrentWidth string    `json:"pcie_current_width"`
+	PCIeMaxSpeed     string    `json:"pcie_max_speed"`
+	PCIeMaxWidth     string    `json:"pcie_max_width"`
+	RDMADevice       string    `json:"rdma_device,omitempty"`
+	RDMAAvailable    bool      `json:"rdma_available"`
+	RoCEAvailable    bool      `json:"roce_available"`
+	IRQs             []IRQInfo `json:"irqs,omitempty"`
+	Warnings         []string  `json:"warnings,omitempty"`
+}
+
+type IRQInfo struct {
+	IRQ      string `json:"irq"`
+	Name     string `json:"name,omitempty"`
+	Affinity string `json:"affinity"`
+}
+
 type Sections struct {
-	Memory bool
-	Cache  bool
-	CPU    bool
-	Disk   bool
+	Memory  bool
+	Cache   bool
+	CPU     bool
+	Disk    bool
+	Network bool
 }

@@ -2,6 +2,7 @@ package output
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"linbench/internal/model"
@@ -63,6 +64,10 @@ func FormatText(result model.BenchmarkResult, sections model.Sections) string {
 		fmt.Fprintf(&b, "  IOPS Write: %.0f\n", result.Disk.RandomWriteIOPS)
 		fmt.Fprintf(&b, "  Latency   : %.3f ms\n", result.Disk.LatencyMS)
 		fmt.Fprintln(&b)
+	}
+
+	if sections.Network {
+		writeNetwork(&b, result.Network)
 	}
 
 	if len(result.Warnings) > 0 {
@@ -136,4 +141,89 @@ func intsToString(values []int) string {
 		parts = append(parts, fmt.Sprint(value))
 	}
 	return strings.Join(parts, " ")
+}
+
+func writeNetwork(b *strings.Builder, result model.NetworkResult) {
+	fmt.Fprintln(b, "Network / RDMA")
+	if result.ProcessCPUs != "" {
+		fmt.Fprintf(b, "  Process CPUs: %s\n", result.ProcessCPUs)
+	}
+	if len(result.Interfaces) == 0 {
+		fmt.Fprintln(b, "  Interfaces  : none detected")
+		fmt.Fprintln(b)
+		return
+	}
+	for _, iface := range result.Interfaces {
+		fmt.Fprintf(b, "  Interface %s\n", iface.Name)
+		fmt.Fprintf(b, "    Driver   : %s\n", valueOrUnknown(iface.Driver))
+		fmt.Fprintf(b, "    MAC      : %s\n", valueOrUnknown(iface.MAC))
+		fmt.Fprintf(b, "    State    : %s\n", valueOrUnknown(iface.OperState))
+		if iface.BondMaster != "" {
+			fmt.Fprintf(b, "    Bond     : %s\n", iface.BondMaster)
+		}
+		fmt.Fprintf(b, "    MTU      : %d\n", iface.MTU)
+		fmt.Fprintf(b, "    Speed    : %d Mb/s\n", iface.SpeedMbps)
+		fmt.Fprintf(b, "    PCI      : %s\n", valueOrUnknown(iface.PCIAddress))
+		fmt.Fprintf(b, "    NUMA Node: %d\n", iface.NUMANode)
+		fmt.Fprintf(b, "    Local CPU: %s\n", valueOrUnknown(iface.LocalCPUs))
+		if iface.PCIeCurrentSpeed != "" || iface.PCIeCurrentWidth != "" {
+			fmt.Fprintf(b, "    PCIe     : %s x%s", valueOrUnknown(iface.PCIeCurrentSpeed), valueOrUnknown(iface.PCIeCurrentWidth))
+			if iface.PCIeMaxSpeed != "" || iface.PCIeMaxWidth != "" {
+				fmt.Fprintf(b, " (max %s x%s)", valueOrUnknown(iface.PCIeMaxSpeed), valueOrUnknown(iface.PCIeMaxWidth))
+			}
+			fmt.Fprintln(b)
+		}
+		if iface.RDMAAvailable {
+			fmt.Fprintf(b, "    RDMA     : %s\n", iface.RDMADevice)
+			fmt.Fprintf(b, "    RoCE     : %t\n", iface.RoCEAvailable)
+		} else {
+			fmt.Fprintln(b, "    RDMA     : unavailable")
+		}
+		if len(iface.IRQs) > 0 {
+			fmt.Fprintf(b, "    IRQs     : %d\n", len(iface.IRQs))
+			limit := len(iface.IRQs)
+			if limit > 16 {
+				limit = 16
+			}
+			for i := 0; i < limit; i++ {
+				irq := iface.IRQs[i]
+				name := irq.Name
+				if name == "" {
+					name = "unknown"
+				}
+				fmt.Fprintf(b, "      %s %-24s %s\n", irq.IRQ, name, valueOrUnknown(irq.Affinity))
+			}
+			if len(iface.IRQs) > limit {
+				fmt.Fprintf(b, "      ... %d more IRQs\n", len(iface.IRQs)-limit)
+			}
+		}
+		if len(iface.Warnings) > 0 {
+			fmt.Fprintln(b, "    Warnings")
+			for _, warning := range iface.Warnings {
+				fmt.Fprintf(b, "      - %s\n", warning)
+			}
+		}
+	}
+	if len(result.PerftestTools) > 0 {
+		fmt.Fprintln(b, "  Perftest")
+		for _, tool := range sortedToolNames(result.PerftestTools) {
+			fmt.Fprintf(b, "    %-12s: %t\n", tool, result.PerftestTools[tool])
+		}
+	}
+	if len(result.Recommendations) > 0 {
+		fmt.Fprintln(b, "  Recommended")
+		for _, recommendation := range result.Recommendations {
+			fmt.Fprintf(b, "    %s\n", recommendation)
+		}
+	}
+	fmt.Fprintln(b)
+}
+
+func sortedToolNames(tools map[string]bool) []string {
+	names := make([]string, 0, len(tools))
+	for name := range tools {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }
