@@ -42,6 +42,30 @@ func TestIfaceRecommendations(t *testing.T) {
 	}
 }
 
+func TestFilterRelevantNetworkInterfaces(t *testing.T) {
+	filtered, hidden := filterRelevantNetworkInterfaces([]model.NetworkInterface{
+		{Name: "eno1", Driver: "tg3"},
+		{Name: "enp4s0f0np0", Driver: "mlx5_core", IsMellanox: true},
+	})
+	if len(filtered) != 1 || filtered[0].Name != "enp4s0f0np0" {
+		t.Fatalf("filtered = %#v", filtered)
+	}
+	if hidden != 1 {
+		t.Fatalf("hidden = %d", hidden)
+	}
+}
+
+func TestReconcileBondedRDMA(t *testing.T) {
+	ifaces := []model.NetworkInterface{
+		{Name: "enp4s0f0np0", IsMellanox: true, BondMaster: "bond0", RDMAAvailable: true, RDMADevice: "mlx5_bond_0", RoCEAvailable: true},
+		{Name: "enp4s0f1np1", IsMellanox: true, BondMaster: "bond0"},
+	}
+	reconcileBondedRDMA(ifaces)
+	if !ifaces[1].RDMAAvailable || ifaces[1].RDMADevice != "mlx5_bond_0" || !ifaces[1].RoCEAvailable {
+		t.Fatalf("bonded RDMA was not propagated: %#v", ifaces[1])
+	}
+}
+
 func containsString(values []string, want string) bool {
 	for _, value := range values {
 		if value == want {

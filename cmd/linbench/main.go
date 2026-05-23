@@ -18,7 +18,7 @@ import (
 	"linbench/internal/unit"
 )
 
-const version = "0.2.0"
+const version = "0.2.1"
 
 func main() {
 	os.Exit(run(os.Args[1:]))
@@ -26,23 +26,24 @@ func main() {
 
 func run(args []string) int {
 	var (
-		allFlag      bool
-		ramFlag      bool
-		cacheFlag    bool
-		cpuFlag      bool
-		diskFlag     bool
-		networkFlag  bool
-		jsonFlag     bool
-		outputFile   string
-		durationText string
-		threadsText  string
-		memoryText   string
-		diskPath     string
-		diskText     string
-		keepFile     bool
-		noSync       bool
-		verbose      bool
-		versionFlag  bool
+		allFlag        bool
+		ramFlag        bool
+		cacheFlag      bool
+		cpuFlag        bool
+		diskFlag       bool
+		networkFlag    bool
+		networkAllFlag bool
+		jsonFlag       bool
+		outputFile     string
+		durationText   string
+		threadsText    string
+		memoryText     string
+		diskPath       string
+		diskText       string
+		keepFile       bool
+		noSync         bool
+		verbose        bool
+		versionFlag    bool
 	)
 
 	fs := flag.NewFlagSet("linbench", flag.ContinueOnError)
@@ -52,6 +53,7 @@ func run(args []string) int {
 	fs.BoolVar(&cpuFlag, "cpu", false, "run CPU benchmark")
 	fs.BoolVar(&diskFlag, "disk", false, "run disk benchmark")
 	fs.BoolVar(&networkFlag, "network", false, "run network/RDMA/NUMA audit")
+	fs.BoolVar(&networkAllFlag, "network-all", false, "include all network interfaces in network audit")
 	fs.BoolVar(&jsonFlag, "json", false, "write JSON output")
 	fs.StringVar(&outputFile, "output", "", "write output to file")
 	fs.StringVar(&durationText, "duration", "1s", "approximate duration of each test")
@@ -76,9 +78,9 @@ func run(args []string) int {
 		Cache:   cacheFlag,
 		CPU:     cpuFlag,
 		Disk:    diskFlag,
-		Network: networkFlag,
+		Network: networkFlag || networkAllFlag,
 	}
-	if allFlag || (!ramFlag && !cacheFlag && !cpuFlag && !diskFlag && !networkFlag) {
+	if allFlag || (!ramFlag && !cacheFlag && !cpuFlag && !diskFlag && !networkFlag && !networkAllFlag) {
 		sections = model.Sections{Memory: true, Cache: true, CPU: true, Disk: true, Network: true}
 	}
 
@@ -142,8 +144,8 @@ func run(args []string) int {
 		}
 	}
 	if sections.Network {
-		result.Network = system.ReadNetworkInfo()
-		if missing := missingPerftestTools(result.Network.PerftestTools); len(missing) > 0 {
+		result.Network = system.ReadNetworkInfo(networkAllFlag)
+		if missing := missingPerftestTools(result.Network.PerftestTools); hasNetworkCandidate(result.Network) && len(missing) > 0 {
 			result.Warnings = append(result.Warnings, "network: RDMA perftest tools are missing: "+strings.Join(missing, ", "))
 		}
 		for _, iface := range result.Network.Interfaces {
@@ -278,4 +280,13 @@ func missingPerftestTools(tools map[string]bool) []string {
 	}
 	sort.Strings(missing)
 	return missing
+}
+
+func hasNetworkCandidate(result model.NetworkResult) bool {
+	for _, iface := range result.Interfaces {
+		if iface.IsMellanox || iface.RDMAAvailable || iface.RoCEAvailable {
+			return true
+		}
+	}
+	return false
 }

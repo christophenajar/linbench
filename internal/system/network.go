@@ -21,10 +21,14 @@ var perftestTools = []string{
 	"ib_send_lat",
 }
 
-func ReadNetworkInfo() model.NetworkResult {
+func ReadNetworkInfo(includeAll bool) model.NetworkResult {
 	result := model.NetworkResult{
 		ProcessCPUs:   readProcessCPUAffinity(),
+		Scope:         "mellanox-rdma",
 		PerftestTools: detectPerftestTools(),
+	}
+	if includeAll {
+		result.Scope = "all"
 	}
 
 	entries, err := os.ReadDir("/sys/class/net")
@@ -43,11 +47,21 @@ func ReadNetworkInfo() model.NetworkResult {
 		}
 		iface := readNetworkInterface(name, devicePath, deviceReal, result.ProcessCPUs)
 		result.Interfaces = append(result.Interfaces, iface)
-		result.Recommendations = append(result.Recommendations, ifaceRecommendations(iface)...)
+	}
+	reconcileBondedRDMA(result.Interfaces)
+	for i := range result.Interfaces {
+		result.Interfaces[i].Warnings = networkWarnings(result.Interfaces[i], result.ProcessCPUs)
 	}
 	sort.Slice(result.Interfaces, func(i, j int) bool {
 		return result.Interfaces[i].Name < result.Interfaces[j].Name
 	})
+	if !includeAll {
+		result.Interfaces, result.HiddenInterfaces = filterRelevantNetworkInterfaces(result.Interfaces)
+	}
+	for _, iface := range result.Interfaces {
+		result.Recommendations = append(result.Recommendations, ifaceRecommendations(iface)...)
+	}
+	result.Recommendations = uniqueStrings(result.Recommendations)
 	return result
 }
 
@@ -74,8 +88,38 @@ func readNetworkInterface(name string, devicePath string, deviceReal string, pro
 	iface.IsMellanox = strings.EqualFold(iface.VendorID, "0x15b3") || strings.Contains(strings.ToLower(iface.Driver), "mlx5")
 	iface.RDMADevice, iface.RDMAAvailable, iface.RoCEAvailable = rdmaForPCI(deviceReal)
 	iface.IRQs = readIRQs(devicePath)
-	iface.Warnings = networkWarnings(iface, processCPUs)
 	return iface
+}
+
+func filterRelevantNetworkInterfaces(ifaces []model.NetworkInterface) ([]model.NetworkInterface, int) {
+	var filtered []model.NetworkInterface
+	for _, iface := range ifaces {
+		if iface.IsMellanox || iface.RDMAAvailable || iface.RoCEAvailable {
+			filtered = append(filtered, iface)
+		}
+	}
+	if len(filtered) == 0 {
+		return ifaces, 0
+	}
+	return filtered, len(ifaces) - len(filtered)
+}
+
+func reconcileBondedRDMA(ifaces []model.NetworkInterface) {
+	bondRDMA := map[string]model.NetworkInterface{}
+	for _, iface := range ifaces {
+		if iface.BondMaster != "" && iface.RDMAAvailable {
+			bondRDMA[iface.BondMaster] = iface
+		}
+	}
+	for i := range ifaces {
+		rdma, ok := bondRDMA[ifaces[i].BondMaster]
+		if !ok || !ifaces[i].IsMellanox || ifaces[i].RDMAAvailable {
+			continue
+		}
+		ifaces[i].RDMADevice = rdma.RDMADevice
+		ifaces[i].RDMAAvailable = true
+		ifaces[i].RoCEAvailable = rdma.RoCEAvailable
+	}
 }
 
 func networkWarnings(iface model.NetworkInterface, processCPUs string) []string {
@@ -123,6 +167,19 @@ func ifaceRecommendations(iface model.NetworkInterface) []string {
 	return []string{
 		"numactl --cpunodebind=" + strconv.Itoa(iface.NUMANode) + " --membind=" + strconv.Itoa(iface.NUMANode) + " ./bin/linbench-linux-amd64 --network",
 	}
+}
+
+func uniqueStrings(values []string) []string {
+	seen := map[string]bool{}
+	var unique []string
+	for _, value := range values {
+		if seen[value] {
+			continue
+		}
+		seen[value] = true
+		unique = append(unique, value)
+	}
+	return unique
 }
 
 func readProcessCPUAffinity() string {

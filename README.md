@@ -2,7 +2,7 @@
 
 `linbench` est un outil de benchmark matériel en ligne de commande pour Linux, écrit en Go.
 
-Version actuelle : `0.2.0`.
+Version actuelle : `0.2.1`.
 
 Il mesure les performances principales d'une machine sans interface graphique :
 
@@ -154,6 +154,7 @@ Tester un chemin disque précis :
 --cpu                 Lance uniquement le benchmark CPU
 --disk                Lance uniquement le benchmark disque
 --network             Lance uniquement l'audit réseau/RDMA/NUMA
+--network-all         Inclut toutes les interfaces réseau dans l'audit
 
 --json                Sortie JSON
 --output FILE         Écrit le résultat dans un fichier
@@ -307,6 +308,12 @@ Lancer uniquement l'audit réseau :
 ./bin/linbench-linux-amd64 --network
 ```
 
+Par défaut, `--network` se concentre sur les interfaces Mellanox/NVIDIA et RDMA afin d'éviter le bruit des interfaces de management, Broadcom 1 GbE, iDRAC, etc. Pour afficher toutes les interfaces physiques détectées :
+
+```bash
+./bin/linbench-linux-amd64 --network-all
+```
+
 Le module lit les informations depuis Linux, sans générer de trafic réseau :
 
 ```text
@@ -397,6 +404,13 @@ Les tests actifs RDMA, comme `ib_write_bw` ou `ib_read_bw`, ne sont pas lancés 
 - Mapping netdev vers PCI address et NUMA node.
 - Détection des outils RDMA perftest installés.
 - Warnings et recommandations `numactl` pour aligner process, mémoire et NIC sur le même node NUMA.
+
+## Changements 0.2.1
+
+- `--network` filtre par défaut les interfaces non Mellanox/RDMA pour réduire le bruit.
+- Ajout de `--network-all` pour afficher toutes les interfaces.
+- Déduplication des recommandations `numactl`.
+- Meilleure gestion des interfaces Mellanox en bond RDMA, par exemple `mlx5_bond_0`.
 
 ## Développement
 

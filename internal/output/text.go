@@ -148,6 +148,12 @@ func writeNetwork(b *strings.Builder, result model.NetworkResult) {
 	if result.ProcessCPUs != "" {
 		fmt.Fprintf(b, "  Process CPUs: %s\n", result.ProcessCPUs)
 	}
+	if result.Scope != "" {
+		fmt.Fprintf(b, "  Scope       : %s\n", result.Scope)
+	}
+	if result.HiddenInterfaces > 0 {
+		fmt.Fprintf(b, "  Hidden      : %d non-RDMA/non-Mellanox interfaces (use --network-all)\n", result.HiddenInterfaces)
+	}
 	if len(result.Interfaces) == 0 {
 		fmt.Fprintln(b, "  Interfaces  : none detected")
 		fmt.Fprintln(b)

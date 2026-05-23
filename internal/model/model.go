@@ -77,10 +77,12 @@ type DiskResult struct {
 }
 
 type NetworkResult struct {
-	ProcessCPUs     string             `json:"process_cpus"`
-	Interfaces      []NetworkInterface `json:"interfaces,omitempty"`
-	PerftestTools   map[string]bool    `json:"perftest_tools,omitempty"`
-	Recommendations []string           `json:"recommendations,omitempty"`
+	ProcessCPUs      string             `json:"process_cpus"`
+	Scope            string             `json:"scope"`
+	HiddenInterfaces int                `json:"hidden_interfaces,omitempty"`
+	Interfaces       []NetworkInterface `json:"interfaces,omitempty"`
+	PerftestTools    map[string]bool    `json:"perftest_tools,omitempty"`
+	Recommendations  []string           `json:"recommendations,omitempty"`
 }
 
 type NetworkInterface struct {

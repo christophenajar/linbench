@@ -49,3 +49,12 @@ func TestMissingPerftestTools(t *testing.T) {
 		t.Fatalf("missing = %#v", missing)
 	}
 }
+
+func TestHasNetworkCandidate(t *testing.T) {
+	if !hasNetworkCandidate(model.NetworkResult{Interfaces: []model.NetworkInterface{{IsMellanox: true}}}) {
+		t.Fatal("expected Mellanox interface to be a network candidate")
+	}
+	if hasNetworkCandidate(model.NetworkResult{Interfaces: []model.NetworkInterface{{Driver: "tg3"}}}) {
+		t.Fatal("did not expect tg3 interface to be a network candidate")
+	}
+}
