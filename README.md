@@ -483,6 +483,14 @@ Build Linux amd64 :
 GOOS=linux GOARCH=amd64 go build ./...
 ```
 
+Build Linux amd64 avec cgo et optimisations CPU locales :
+
+```bash
+CGO_ENABLED=1 CGO_CFLAGS='-O3 -march=native' go build -trimpath -ldflags '-s -w' -o bin/linbench-linux-amd64 ./cmd/linbench
+```
+
+Ce build doit etre lance directement sur la machine cible. `-march=native` peut produire un binaire non portable sur un autre CPU.
+
 Si l'environnement empêche Go d'écrire dans le cache utilisateur, utiliser un cache local temporaire :
 
 ```bash
