@@ -362,7 +362,32 @@ Sur une machine NUMA, l'audit recommande une commande alignant CPU et mémoire s
 numactl --cpunodebind=0 --membind=0 ./bin/linbench-linux-amd64 --network
 ```
 
-Les tests actifs RDMA, comme `ib_write_bw` ou `ib_read_bw`, ne sont pas lancés automatiquement en `0.2.0`, car ils nécessitent un pair distant et une configuration RoCE correcte. Le module se limite à vérifier que la machine locale est cohérente avant de lancer ces outils manuellement.
+Les tests actifs RDMA, comme `ib_write_bw` ou `ib_read_bw`, ne sont pas lancés automatiquement, car ils nécessitent un pair distant et une configuration RoCE correcte. Le module se limite à vérifier que la machine locale est cohérente avant de lancer ces outils manuellement.
+
+Exemple de test actif avec `ib_read_bw` :
+
+```bash
+# Receiver
+numactl --cpunodebind=0 --membind=0 \
+  ib_read_bw -d mlx5_bond_0 -i 1 -x 3 --report_gbits -F -q 16 --perform_warm_up -D 30
+
+# Sender
+numactl --cpunodebind=0 --membind=0 \
+  ib_read_bw -d mlx5_bond_0 -i 1 -x 3 --report_gbits -F -q 16 --perform_warm_up -D 30 192.168.1.10
+```
+
+Cet exemple mesure la bande passante RDMA read du sender vers le receiver pendant 30 secondes. Les options principales sont :
+
+- `-d mlx5_bond_0` : utilise le device RDMA expose par le bond RoCE.
+- `-i 1` : utilise le port RDMA 1.
+- `-x 3` : utilise le GID index 3 ; il doit correspondre au GID RoCE attendu sur les deux machines.
+- `--report_gbits` : affiche les resultats en Gbit/s.
+- `-q 16` : lance 16 queue pairs pour mieux charger une liaison rapide.
+- `--perform_warm_up` : ignore la phase de chauffe avant la mesure.
+- `-D 30` : mesure pendant 30 secondes.
+- `-F` : ignore l'avertissement perftest sur la frequence CPU.
+
+Cette commande est coherente pour verifier le debit RoCE d'une ConnectX en environnement NUMA, a condition que l'adresse IP finale soit celle du receiver sur le reseau RoCE, que le GID index soit correct, et que CPU, memoire, NIC et IRQ soient alignes sur le meme node NUMA.
 
 ## Changements 0.1.1
 
