@@ -187,6 +187,7 @@ func writeNetwork(b *strings.Builder, result model.NetworkResult) {
 		}
 		if len(iface.IRQs) > 0 {
 			fmt.Fprintf(b, "    IRQs     : %d\n", len(iface.IRQs))
+			writeIRQSummary(b, iface.IRQSummary)
 			limit := len(iface.IRQs)
 			if limit > 16 {
 				limit = 16
@@ -201,6 +202,10 @@ func writeNetwork(b *strings.Builder, result model.NetworkResult) {
 			}
 			if len(iface.IRQs) > limit {
 				fmt.Fprintf(b, "      ... %d more IRQs\n", len(iface.IRQs)-limit)
+			}
+			if iface.IRQSummary != nil {
+				writeIRQDetails(b, "Remote data IRQs", iface.IRQSummary.RemoteData)
+				writeIRQDetails(b, "Remote other IRQs", iface.IRQSummary.RemoteOther)
 			}
 		}
 		if len(iface.Warnings) > 0 {
@@ -229,6 +234,39 @@ func writeNetwork(b *strings.Builder, result model.NetworkResult) {
 		}
 	}
 	fmt.Fprintln(b)
+}
+
+func writeIRQSummary(b *strings.Builder, summary *model.IRQSummary) {
+	if summary == nil {
+		return
+	}
+	fmt.Fprintln(b, "      IRQ Summary")
+	fmt.Fprintf(b, "        Data local : %d\n", summary.DataLocal)
+	fmt.Fprintf(b, "        Data remote: %d\n", summary.DataRemote)
+	fmt.Fprintf(b, "        Other local: %d\n", summary.OtherLocal)
+	fmt.Fprintf(b, "        Other remote: %d\n", summary.OtherRemote)
+}
+
+func writeIRQDetails(b *strings.Builder, title string, irqs []model.IRQInfo) {
+	if len(irqs) == 0 {
+		return
+	}
+	fmt.Fprintf(b, "      %s\n", title)
+	limit := len(irqs)
+	if limit > 16 {
+		limit = 16
+	}
+	for i := 0; i < limit; i++ {
+		irq := irqs[i]
+		name := irq.Name
+		if name == "" {
+			name = "unknown"
+		}
+		fmt.Fprintf(b, "        %s %-24s %s\n", irq.IRQ, name, valueOrUnknown(irq.Affinity))
+	}
+	if len(irqs) > limit {
+		fmt.Fprintf(b, "        ... %d more IRQs\n", len(irqs)-limit)
+	}
 }
 
 func sortedToolNames(tools map[string]bool) []string {

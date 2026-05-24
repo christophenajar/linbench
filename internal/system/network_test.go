@@ -23,7 +23,7 @@ func TestNetworkWarnings(t *testing.T) {
 		"RDMA device is missing for Mellanox/NVIDIA interface",
 		"link speed is below 25Gb/s",
 		"process CPU affinity includes CPUs outside NIC-local NUMA node",
-		"one or more NIC data/completion IRQ affinities include CPUs outside NIC-local NUMA node",
+		"1 NIC data/completion IRQ affinities include CPUs outside NIC-local NUMA node",
 	} {
 		if !containsString(warnings, want) {
 			t.Fatalf("missing warning %q in %#v", want, warnings)
@@ -55,11 +55,31 @@ func TestNetworkDiagnosticsInfo(t *testing.T) {
 	}
 	for _, want := range []string{
 		"PCIe current link speed is below max, but estimated PCIe bandwidth is sufficient for current link speed",
-		"one or more NIC non-data IRQ affinities include CPUs outside NIC-local NUMA node",
+		"1 NIC non-data IRQ affinities include CPUs outside NIC-local NUMA node",
 	} {
 		if !containsString(infos, want) {
 			t.Fatalf("missing info %q in %#v", want, infos)
 		}
+	}
+}
+
+func TestSummarizeIRQsSeparatesDataAndOther(t *testing.T) {
+	summary := summarizeIRQs([]model.IRQInfo{
+		{IRQ: "75", Name: "mlx5_async0@pci:0000:04:00.0", Affinity: "0-31"},
+		{IRQ: "76", Name: "mlx5_comp0@pci:0000:04:00.0", Affinity: "0,2,4,6"},
+		{IRQ: "85", Name: "mlx5_comp1@pci:0000:04:00.0", Affinity: "1,3"},
+	}, "0,2,4,6")
+	if summary == nil {
+		t.Fatal("summary is nil")
+	}
+	if summary.DataLocal != 1 || summary.DataRemote != 1 || summary.OtherLocal != 0 || summary.OtherRemote != 1 {
+		t.Fatalf("summary = %#v", summary)
+	}
+	if len(summary.RemoteData) != 1 || summary.RemoteData[0].IRQ != "85" {
+		t.Fatalf("remote data = %#v", summary.RemoteData)
+	}
+	if len(summary.RemoteOther) != 1 || summary.RemoteOther[0].IRQ != "75" {
+		t.Fatalf("remote other = %#v", summary.RemoteOther)
 	}
 }
 

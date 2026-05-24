@@ -86,35 +86,46 @@ type NetworkResult struct {
 }
 
 type NetworkInterface struct {
-	Name             string    `json:"name"`
-	Driver           string    `json:"driver"`
-	MAC              string    `json:"mac"`
-	OperState        string    `json:"oper_state"`
-	MTU              int       `json:"mtu"`
-	SpeedMbps        int       `json:"speed_mbps"`
-	BondMaster       string    `json:"bond_master,omitempty"`
-	PCIAddress       string    `json:"pci_address"`
-	VendorID         string    `json:"vendor_id"`
-	DeviceID         string    `json:"device_id"`
-	IsMellanox       bool      `json:"is_mellanox"`
-	NUMANode         int       `json:"numa_node"`
-	LocalCPUs        string    `json:"local_cpus"`
-	PCIeCurrentSpeed string    `json:"pcie_current_speed"`
-	PCIeCurrentWidth string    `json:"pcie_current_width"`
-	PCIeMaxSpeed     string    `json:"pcie_max_speed"`
-	PCIeMaxWidth     string    `json:"pcie_max_width"`
-	RDMADevice       string    `json:"rdma_device,omitempty"`
-	RDMAAvailable    bool      `json:"rdma_available"`
-	RoCEAvailable    bool      `json:"roce_available"`
-	IRQs             []IRQInfo `json:"irqs,omitempty"`
-	Infos            []string  `json:"infos,omitempty"`
-	Warnings         []string  `json:"warnings,omitempty"`
+	Name             string      `json:"name"`
+	Driver           string      `json:"driver"`
+	MAC              string      `json:"mac"`
+	OperState        string      `json:"oper_state"`
+	MTU              int         `json:"mtu"`
+	SpeedMbps        int         `json:"speed_mbps"`
+	BondMaster       string      `json:"bond_master,omitempty"`
+	PCIAddress       string      `json:"pci_address"`
+	VendorID         string      `json:"vendor_id"`
+	DeviceID         string      `json:"device_id"`
+	IsMellanox       bool        `json:"is_mellanox"`
+	NUMANode         int         `json:"numa_node"`
+	LocalCPUs        string      `json:"local_cpus"`
+	PCIeCurrentSpeed string      `json:"pcie_current_speed"`
+	PCIeCurrentWidth string      `json:"pcie_current_width"`
+	PCIeMaxSpeed     string      `json:"pcie_max_speed"`
+	PCIeMaxWidth     string      `json:"pcie_max_width"`
+	RDMADevice       string      `json:"rdma_device,omitempty"`
+	RDMAAvailable    bool        `json:"rdma_available"`
+	RoCEAvailable    bool        `json:"roce_available"`
+	IRQs             []IRQInfo   `json:"irqs,omitempty"`
+	IRQSummary       *IRQSummary `json:"irq_summary,omitempty"`
+	Infos            []string    `json:"infos,omitempty"`
+	Warnings         []string    `json:"warnings,omitempty"`
 }
 
 type IRQInfo struct {
 	IRQ      string `json:"irq"`
 	Name     string `json:"name,omitempty"`
 	Affinity string `json:"affinity"`
+}
+
+type IRQSummary struct {
+	Total       int       `json:"total"`
+	DataLocal   int       `json:"data_local"`
+	DataRemote  int       `json:"data_remote"`
+	OtherLocal  int       `json:"other_local"`
+	OtherRemote int       `json:"other_remote"`
+	RemoteData  []IRQInfo `json:"remote_data,omitempty"`
+	RemoteOther []IRQInfo `json:"remote_other,omitempty"`
 }
 
 type Sections struct {

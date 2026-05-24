@@ -34,6 +34,47 @@ func TestFormatText(t *testing.T) {
 	}
 }
 
+func TestFormatTextNetworkIRQSummary(t *testing.T) {
+	result := sampleResult()
+	result.Network = model.NetworkResult{
+		ProcessCPUs: "0,2,4,6",
+		Scope:       "mellanox-rdma",
+		Interfaces: []model.NetworkInterface{
+			{
+				Name:          "enp4s0f0np0",
+				Driver:        "mlx5_core",
+				MAC:           "00:11:22:33:44:55",
+				OperState:     "up",
+				MTU:           9000,
+				SpeedMbps:     25000,
+				PCIAddress:    "0000:04:00.0",
+				NUMANode:      0,
+				LocalCPUs:     "0,2,4,6",
+				RDMAAvailable: true,
+				RDMADevice:    "mlx5_bond_0",
+				RoCEAvailable: true,
+				IRQs: []model.IRQInfo{
+					{IRQ: "75", Name: "mlx5_async0@pci:0000:04:00.0", Affinity: "0-31"},
+					{IRQ: "76", Name: "mlx5_comp0@pci:0000:04:00.0", Affinity: "1,3"},
+				},
+				IRQSummary: &model.IRQSummary{
+					Total:       2,
+					DataRemote:  1,
+					OtherRemote: 1,
+					RemoteData:  []model.IRQInfo{{IRQ: "76", Name: "mlx5_comp0@pci:0000:04:00.0", Affinity: "1,3"}},
+					RemoteOther: []model.IRQInfo{{IRQ: "75", Name: "mlx5_async0@pci:0000:04:00.0", Affinity: "0-31"}},
+				},
+			},
+		},
+	}
+	text := FormatText(result, model.Sections{Network: true})
+	for _, want := range []string{"IRQ Summary", "Data remote: 1", "Remote data IRQs", "Remote other IRQs"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("text output missing %q:\n%s", want, text)
+		}
+	}
+}
+
 func sampleResult() model.BenchmarkResult {
 	return model.BenchmarkResult{
 		System: model.SystemInfo{

@@ -2,7 +2,7 @@
 
 `linbench` est un outil de benchmark matériel en ligne de commande pour Linux, écrit en Go.
 
-Version actuelle : `0.2.2`.
+Version actuelle : `0.2.3`.
 
 Il mesure les performances principales d'une machine sans interface graphique :
 
@@ -337,6 +337,7 @@ Il vérifie :
 - device RDMA associé, par exemple `mlx5_0`
 - disponibilité RoCE via les GID types RDMA
 - IRQ MSI/MSI-X et `smp_affinity_list`
+- résumé des IRQ data/completion locales/distantes et des IRQ non-data locales/distantes
 - affinité CPU du processus courant
 - présence des outils RDMA perftest : `ib_write_bw`, `ib_read_bw`, `ib_send_bw`, `ib_write_lat`, `ib_read_lat`, `ib_send_lat`
 
@@ -423,6 +424,13 @@ Les tests actifs RDMA, comme `ib_write_bw` ou `ib_read_bw`, ne sont pas lancés 
 - PCIe sous le maximum passe en info si la bande passante estimée suffit au lien réseau courant.
 - Les IRQ non-data distantes, par exemple `mlx5_async`, passent en info.
 - Les warnings IRQ distantes ciblent désormais les IRQ data/completion.
+
+## Changements 0.2.3
+
+- Ajout d'un résumé IRQ par interface : data local, data remote, other local et other remote.
+- Affichage détaillé des IRQ data distantes quand un warning IRQ est émis.
+- Affichage détaillé des IRQ non-data distantes quand elles sont seulement informatives.
+- Classification plus stricte des IRQ Mellanox : `mlx5_comp*` est data/completion, `mlx5_async*` reste non-data.
 
 ## Développement
 

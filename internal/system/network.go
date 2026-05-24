@@ -88,6 +88,7 @@ func readNetworkInterface(name string, devicePath string, deviceReal string, pro
 	iface.IsMellanox = strings.EqualFold(iface.VendorID, "0x15b3") || strings.Contains(strings.ToLower(iface.Driver), "mlx5")
 	iface.RDMADevice, iface.RDMAAvailable, iface.RoCEAvailable = rdmaForPCI(deviceReal)
 	iface.IRQs = readIRQs(devicePath)
+	iface.IRQSummary = summarizeIRQs(iface.IRQs, iface.LocalCPUs)
 	return iface
 }
 
@@ -158,29 +159,53 @@ func networkDiagnostics(iface model.NetworkInterface, processCPUs string) ([]str
 	if iface.LocalCPUs != "" && CPUListContainsRemote(processCPUs, iface.LocalCPUs) {
 		warnings = append(warnings, "process CPU affinity includes CPUs outside NIC-local NUMA node")
 	}
-	remoteDataIRQs := 0
-	remoteOtherIRQs := 0
-	for _, irq := range iface.IRQs {
-		if irq.Affinity != "" && iface.LocalCPUs != "" && CPUListContainsRemote(irq.Affinity, iface.LocalCPUs) {
-			if isDataIRQ(irq.Name) {
-				remoteDataIRQs++
-			} else {
-				remoteOtherIRQs++
-			}
+	summary := iface.IRQSummary
+	if summary == nil {
+		summary = summarizeIRQs(iface.IRQs, iface.LocalCPUs)
+	}
+	if summary != nil {
+		if summary.DataRemote > 0 {
+			warnings = append(warnings, strconv.Itoa(summary.DataRemote)+" NIC data/completion IRQ affinities include CPUs outside NIC-local NUMA node")
 		}
-	}
-	if remoteDataIRQs > 0 {
-		warnings = append(warnings, "one or more NIC data/completion IRQ affinities include CPUs outside NIC-local NUMA node")
-	}
-	if remoteOtherIRQs > 0 {
-		infos = append(infos, "one or more NIC non-data IRQ affinities include CPUs outside NIC-local NUMA node")
+		if summary.OtherRemote > 0 {
+			infos = append(infos, strconv.Itoa(summary.OtherRemote)+" NIC non-data IRQ affinities include CPUs outside NIC-local NUMA node")
+		}
 	}
 	return warnings, infos
 }
 
+func summarizeIRQs(irqs []model.IRQInfo, localCPUs string) *model.IRQSummary {
+	if len(irqs) == 0 {
+		return nil
+	}
+	summary := model.IRQSummary{Total: len(irqs)}
+	for _, irq := range irqs {
+		remote := irq.Affinity != "" && localCPUs != "" && CPUListContainsRemote(irq.Affinity, localCPUs)
+		if isDataIRQ(irq.Name) {
+			if remote {
+				summary.DataRemote++
+				summary.RemoteData = append(summary.RemoteData, irq)
+			} else {
+				summary.DataLocal++
+			}
+			continue
+		}
+		if remote {
+			summary.OtherRemote++
+			summary.RemoteOther = append(summary.RemoteOther, irq)
+		} else {
+			summary.OtherLocal++
+		}
+	}
+	return &summary
+}
+
 func isDataIRQ(name string) bool {
 	name = strings.ToLower(name)
-	return strings.Contains(name, "comp") || strings.Contains(name, "-rx") || strings.Contains(name, "-tx")
+	if strings.Contains(name, "mlx5_") {
+		return strings.Contains(name, "mlx5_comp")
+	}
+	return strings.Contains(name, "-rx") || strings.Contains(name, "-tx")
 }
 
 func pcieBandwidthSufficient(iface model.NetworkInterface) bool {
